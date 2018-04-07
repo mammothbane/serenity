@@ -112,7 +112,7 @@ impl Role {
             }
         }
 
-        Err(Error::Model(ModelError::GuildNotFound))
+        Err(ModelError::GuildNotFound.into())
     }
 
     /// Check that the role has the given permission.

@@ -72,9 +72,8 @@ use websocket::sync::{
 
 #[cfg(feature = "client")]
 use client::bridge::gateway::ShardClientMessage;
-use internal::prelude::StdResult;
+use internal::prelude::*;
 
-pub(crate) type Result<T> = StdResult<T, GatewayError>;
 pub type CurrentPresence = (Option<Game>, OnlineStatus);
 pub type WsClient = Client<TlsStream<TcpStream>>;
 

@@ -18,7 +18,6 @@ use CACHE;
 use http::{self, AttachmentType};
 #[cfg(feature = "model")]
 use utils;
-use http::HttpError;
 
 #[cfg(feature = "model")]
 impl ChannelId {
@@ -43,7 +42,7 @@ impl ChannelId {
     ///
     /// [Send Messages]: permissions/constant.SEND_MESSAGES.html
     #[inline]
-    pub fn broadcast_typing(&self) -> StdResult<(), HttpError> { http::broadcast_typing(self.0) }
+    pub fn broadcast_typing(&self) -> Result<()> { http::broadcast_typing(self.0) }
 
     /// Creates a [permission overwrite][`PermissionOverwrite`] for either a
     /// single [`Member`] or [`Role`] within the channel.
@@ -58,7 +57,7 @@ impl ChannelId {
     /// [`PermissionOverwrite`]: struct.PermissionOverwrite.html
     /// [`Role`]: struct.Role.html
     /// [Manage Channels]: permissions/constant.MANAGE_CHANNELS.html
-    pub fn create_permission(&self, target: &PermissionOverwrite) -> StdResult<(), HttpError> {
+    pub fn create_permission(&self, target: &PermissionOverwrite) -> Result<()> {
         let (id, kind) = match target.kind {
             PermissionOverwriteType::Member(id) => (id.0, "member"),
             PermissionOverwriteType::Role(id) => (id.0, "role"),
@@ -87,14 +86,14 @@ impl ChannelId {
     /// [`Message::react`]: struct.Message.html#method.react
     /// [Add Reactions]: permissions/constant.ADD_REACTIONS.html
     #[inline]
-    pub fn create_reaction<M, R>(&self, message_id: M, reaction_type: R) -> StdResult<(), HttpError>
+    pub fn create_reaction<M, R>(&self, message_id: M, reaction_type: R) -> Result<()>
         where M: Into<MessageId>, R: Into<ReactionType> {
         http::create_reaction(self.0, message_id.into().0, &reaction_type.into())
     }
 
     /// Deletes this channel, returning the channel on a successful deletion.
     #[inline]
-    pub fn delete(&self) -> StdResult<Channel, HttpError> { http::delete_channel(self.0) }
+    pub fn delete(&self) -> Result<Channel> { http::delete_channel(self.0) }
 
     /// Deletes a [`Message`] given its Id.
     ///
@@ -107,7 +106,7 @@ impl ChannelId {
     /// [`Message::delete`]: struct.Message.html#method.delete
     /// [Manage Messages]: permissions/constant.MANAGE_MESSAGES.html
     #[inline]
-    pub fn delete_message<M: Into<MessageId>>(&self, message_id: M) -> StdResult<(), HttpError> {
+    pub fn delete_message<M: Into<MessageId>>(&self, message_id: M) -> Result<()> {
         http::delete_message(self.0, message_id.into().0)
     }
 
@@ -144,7 +143,7 @@ impl ChannelId {
     /// [`Channel::delete_messages`]: enum.Channel.html#method.delete_messages
     /// [`ModelError::BulkDeleteAmount`]: ../enum.ModelError.html#variant.BulkDeleteAmount
     /// [Manage Messages]: permissions/constant.MANAGE_MESSAGES.html
-    pub fn delete_messages<T: AsRef<MessageId>, It: IntoIterator<Item=T>>(&self, message_ids: It) -> StdResult<(), Error> {
+    pub fn delete_messages<T: AsRef<MessageId>, It: IntoIterator<Item=T>>(&self, message_ids: It) -> Result<()> {
         let ids = message_ids
             .into_iter()
             .map(|message_id| message_id.as_ref().0)
@@ -175,7 +174,7 @@ impl ChannelId {
                                  message_id: M,
                                  user_id: Option<UserId>,
                                  reaction_type: R)
-                                 -> StdResult<(), HttpError>
+                                 -> Result<()>
         where M: Into<MessageId>, R: Into<ReactionType> {
         http::delete_reaction(
             self.0,
@@ -206,7 +205,7 @@ impl ChannelId {
     /// [Manage Channel]: permissions/constant.MANAGE_CHANNELS.html
     #[cfg(feature = "utils")]
     #[inline]
-    pub fn edit<F: FnOnce(EditChannel) -> EditChannel>(&self, f: F) -> StdResult<GuildChannel, HttpError> {
+    pub fn edit<F: FnOnce(EditChannel) -> EditChannel>(&self, f: F) -> Result<GuildChannel> {
         let map = utils::vecmap_to_json_map(f(EditChannel::default()).0);
 
         http::edit_channel(self.0, &map)
@@ -232,7 +231,7 @@ impl ChannelId {
     /// [`Message`]: struct.Message.html
     /// [`the limit`]: ../builder/struct.EditMessage.html#method.content
     #[cfg(feature = "utils")]
-    pub fn edit_message<F, M>(&self, message_id: M, f: F) -> StdResult<Message, Error>
+    pub fn edit_message<F, M>(&self, message_id: M, f: F) -> Result<Message>
         where F: FnOnce(EditMessage) -> EditMessage, M: Into<MessageId> {
         let msg = f(EditMessage::default());
 
@@ -256,7 +255,7 @@ impl ChannelId {
 
     /// Search the cache for the channel. If it can't be found, the channel is
     /// requested over REST.
-    pub fn get(&self) -> StdResult<Channel, HttpError> {
+    pub fn get(&self) -> Result<Channel> {
         #[cfg(feature = "cache")]
         {
             if let Some(channel) = CACHE.read().channel(*self) {
@@ -272,7 +271,7 @@ impl ChannelId {
     /// Requires the [Manage Channels] permission.
     /// [Manage Channels]: permissions/constant.MANAGE_CHANNELS.html
     #[inline]
-    pub fn invites(&self) -> StdResult<Vec<RichInvite>, HttpError> { http::get_channel_invites(self.0) }
+    pub fn invites(&self) -> Result<Vec<RichInvite>> { http::get_channel_invites(self.0) }
 
     /// Gets a message from the channel.
     ///
@@ -280,7 +279,7 @@ impl ChannelId {
     ///
     /// [Read Message History]: permissions/constant.READ_MESSAGE_HISTORY.html
     #[inline]
-    pub fn message<M: Into<MessageId>>(&self, message_id: M) -> StdResult<Message, HttpError> {
+    pub fn message<M: Into<MessageId>>(&self, message_id: M) -> Result<Message> {
         http::get_message(self.0, message_id.into().0)
             .map(|mut msg| {
                 msg.transform_content();
@@ -297,7 +296,7 @@ impl ChannelId {
     ///
     /// [`Channel::messages`]: enum.Channel.html#method.messages
     /// [Read Message History]: permissions/constant.READ_MESSAGE_HISTORY.html
-    pub fn messages<F>(&self, f: F) -> StdResult<Vec<Message>, Error>
+    pub fn messages<F>(&self, f: F) -> Result<Vec<Message>>
         where F: FnOnce(GetMessages) -> GetMessages {
         let mut map = f(GetMessages::default()).0;
         let mut query = format!("?limit={}", map.remove(&"limit").unwrap_or(50));
@@ -473,7 +472,7 @@ impl ChannelId {
         if let Some(content) = msg.0.get(&"content") {
             if let Value::String(ref content) = *content {
                 if let Some(length_over) = Message::overflow_length(content) {
-                    return Err(ModelError::MessageTooLong(length_over));
+                    return Err(ModelError::MessageTooLong(length_over).into());
                 }
             }
         }

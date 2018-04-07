@@ -44,7 +44,6 @@ use chrono::Utc;
 use hyper::client::{RequestBuilder, Response};
 use hyper::header::Headers;
 use hyper::status::StatusCode;
-use internal::prelude::*;
 use parking_lot::Mutex;
 use std::{
     collections::HashMap,
@@ -514,11 +513,11 @@ impl RateLimit {
 fn parse_header(headers: &Headers, header: &str) -> Result<Option<i64>> {
     headers.get_raw(header).map_or(Ok(None), |header| {
         str::from_utf8(&header[0])
-            .map_err(|_| Error::Http(HttpError::RateLimitUtf8))
+            .map_err(|_| HttpError::RateLimitUtf8.into())
             .and_then(|v| {
                 v.parse::<i64>()
                     .map(Some)
-                    .map_err(|_| Error::Http(HttpError::RateLimitI64))
+                    .map_err(|_| HttpError::RateLimitI64.into())
             })
     })
 }

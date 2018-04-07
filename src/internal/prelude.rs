@@ -6,9 +6,9 @@
 
 pub(crate) type JsonMap = Map<String, Value>;
 
-pub(crate) use failure::{Error, ResultExt};
-pub(crate) use std::result::Result as StdResult;
+pub(crate) use failure::Error;
+pub(crate) use error::SerenityError;
 pub(crate) use serde_json::{Map, Number, Value};
 
-#[cfg(feature = "client")]
-pub(crate) use client::ClientError;
+pub(crate) type Result<T> = ::std::result::Result<T, Error>;
+pub(crate) type StdResult<T, E> = ::std::result::Result<T, E>;

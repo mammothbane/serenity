@@ -36,7 +36,6 @@ use builder::{CreateMessage, EditMessage, GetMessages};
 use http::AttachmentType;
 #[cfg(feature = "model")]
 use std::fmt::{Display, Formatter, Result as FmtResult};
-use http::HttpError;
 
 /// A container for any channel.
 #[derive(Clone, Debug)]
@@ -209,7 +208,7 @@ impl Channel {
     #[cfg(feature = "model")]
     #[deprecated(since = "0.4.2", note = "Use the inner channel's method")]
     #[inline]
-    pub fn create_reaction<M, R>(&self, message_id: M, reaction_type: R) -> StdResult<(), HttpError>
+    pub fn create_reaction<M, R>(&self, message_id: M, reaction_type: R) -> Result<()>
         where M: Into<MessageId>, R: Into<ReactionType> {
         self.id().create_reaction(message_id, reaction_type)
     }

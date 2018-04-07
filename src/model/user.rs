@@ -480,7 +480,7 @@ impl User {
     pub fn direct_message<F>(&self, f: F) -> Result<Message>
         where F: FnOnce(CreateMessage) -> CreateMessage {
         if self.bot {
-            return Err(ModelError::MessagingBot);
+            return Err(ModelError::MessagingBot.into());
         }
 
         let private_channel_id = feature_cache! {

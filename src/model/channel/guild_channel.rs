@@ -123,7 +123,7 @@ impl GuildChannel {
             let req = Permissions::CREATE_INVITE;
 
             if !utils::user_has_perms(self.id, req)? {
-                return Err(ModelError::InvalidPermissions(req));
+                return Err(ModelError::InvalidPermissions(req).into());
             }
         }
 
@@ -247,7 +247,7 @@ impl GuildChannel {
             let req = Permissions::MANAGE_CHANNELS;
 
             if !utils::user_has_perms(self.id, req)? {
-                return Err(ModelError::InvalidPermissions(req));
+                return Err(ModelError::InvalidPermissions(req).into());
             }
         }
 
@@ -323,7 +323,7 @@ impl GuildChannel {
             let req = Permissions::MANAGE_CHANNELS;
 
             if !utils::user_has_perms(self.id, req)? {
-                return Err(ModelError::InvalidPermissions(req));
+                return Err(ModelError::InvalidPermissions(req).into());
             }
         }
 
@@ -522,7 +522,7 @@ impl GuildChannel {
     #[cfg(feature = "cache")]
     pub fn permissions_for<U: Into<UserId>>(&self, user_id: U) -> Result<Permissions> {
         self.guild()
-            .ok_or_else(|| Error::Model(ModelError::GuildNotFound))
+            .ok_or_else(|| ModelError::GuildNotFound.into())
             .map(|g| g.read().permissions_in(self.id, user_id))
     }
 
@@ -620,7 +620,7 @@ impl GuildChannel {
             let req = Permissions::SEND_MESSAGES;
 
             if !utils::user_has_perms(self.id, req)? {
-                return Err(ModelError::InvalidPermissions(req));
+                return Err(ModelError::InvalidPermissions(req).into());
             }
         }
 

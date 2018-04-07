@@ -52,12 +52,9 @@ use std::{
         Result as FmtResult
     },
     sync::Arc,
-    result::Result as StdResult
 };
 
 #[cfg(feature = "utils")]
 use utils::Colour;
 
 use serde::{Deserialize, Deserializer};
-
-pub(crate) type Result<T> = StdResult<T, ModelError>;

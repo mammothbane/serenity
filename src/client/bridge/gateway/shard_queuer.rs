@@ -169,7 +169,7 @@ impl<H: EventHandler + Send + Sync + 'static> ShardQueuer<H> {
         self.last_start = Some(Instant::now());
     }
 
-    fn start(&mut self, shard_id: u64, shard_total: u64) -> StdResult<(), Error> {
+    fn start(&mut self, shard_id: u64, shard_total: u64) -> Result<()> {
         let shard_info = [shard_id, shard_total];
 
         let shard = Shard::new(

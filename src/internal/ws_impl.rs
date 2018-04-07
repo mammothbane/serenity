@@ -9,15 +9,15 @@ use websocket::{
 };
 
 pub trait ReceiverExt {
-    fn recv_json(&mut self) -> Result<Option<Value>, Error>;
+    fn recv_json(&mut self) -> Result<Option<Value>>;
 }
 
 pub trait SenderExt {
-    fn send_json(&mut self, value: &Value) -> Result<(), Error>;
+    fn send_json(&mut self, value: &Value) -> Result<()>;
 }
 
 impl ReceiverExt for WsClient<TlsStream<TcpStream>> {
-    fn recv_json(&mut self) -> Result<Option<Value>, Error> {
+    fn recv_json(&mut self) -> Result<Option<Value>> {
         Ok(match self.recv_message()? {
             OwnedMessage::Binary(bytes) => {
                 serde_json::from_reader(ZlibDecoder::new(&bytes[..])).map(Some)?
@@ -38,7 +38,7 @@ impl ReceiverExt for WsClient<TlsStream<TcpStream>> {
 }
 
 impl SenderExt for WsClient<TlsStream<TcpStream>> {
-    fn send_json(&mut self, value: &Value) -> Result<(), Error> {
+    fn send_json(&mut self, value: &Value) -> Result<()> {
         serde_json::to_string(value)
             .map(OwnedMessage::Text)
             .map_err(Error::from)

@@ -143,13 +143,13 @@ impl Member {
     pub fn ban<BO: BanOptions>(&self, ban_options: &BO) -> Result<()> {
         let dmd = ban_options.dmd();
         if dmd > 7 {
-            return Err(ModelError::DeleteMessageDaysAmount(dmd));
+            return Err(ModelError::DeleteMessageDaysAmount(dmd).into());
         }
 
         let reason = ban_options.reason();
 
         if reason.len() > 512 {
-            return Err(Error::ExceededLimit(reason.to_string(), 512));
+            return Err(SerenityError::ExceededLimit { reason: reason.to_string(), limit: 512 }.into());
         }
 
         http::ban_user(
@@ -320,7 +320,7 @@ impl Member {
                 let reader = guild.read();
 
                 if !reader.has_perms(req) {
-                    return Err(ModelError::InvalidPermissions(req));
+                    return Err(ModelError::InvalidPermissions(req).into());
                 }
 
                 reader.check_hierarchy(self.user.read().id)?;

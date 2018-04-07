@@ -132,7 +132,7 @@ pub fn ffmpeg<P: AsRef<OsStr>>(path: P) -> Result<Box<AudioSource>> {
 
 /// Creates a streamed audio source from a DCA file.
 /// Currently only accepts the DCA1 format.
-pub fn dca<P: AsRef<OsStr>>(path: P) -> StdResult<Box<AudioSource>, DcaError> {
+pub fn dca<P: AsRef<OsStr>>(path: P) -> Result<Box<AudioSource>> {
     let file = File::open(path.as_ref()).map_err(DcaError::IoError)?;
 
     let mut reader = BufReader::new(file);

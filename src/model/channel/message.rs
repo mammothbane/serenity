@@ -141,7 +141,7 @@ impl Message {
             let has_perms = utils::user_has_perms(self.channel_id, req)?;
 
             if !is_author && !has_perms {
-                return Err(ModelError::InvalidPermissions(req));
+                return Err(ModelError::InvalidPermissions(req).into());
             }
         }
 
@@ -167,7 +167,7 @@ impl Message {
             let req = Permissions::MANAGE_MESSAGES;
 
             if !utils::user_has_perms(self.channel_id, req)? {
-                return Err(ModelError::InvalidPermissions(req));
+                return Err(ModelError::InvalidPermissions(req).into());
             }
         }
 
@@ -211,7 +211,7 @@ impl Message {
         #[cfg(feature = "cache")]
         {
             if self.author.id != CACHE.read().user.id {
-                return Err(Error::Model(ModelError::InvalidUser));
+                return Err(ModelError::InvalidUser.into());
             }
         }
 
@@ -405,7 +405,7 @@ impl Message {
             let req = Permissions::MANAGE_MESSAGES;
 
             if !utils::user_has_perms(self.channel_id, req)? {
-                return Err(ModelError::InvalidPermissions(req));
+                return Err(ModelError::InvalidPermissions(req).into());
             }
         }
 
@@ -432,7 +432,7 @@ impl Message {
             let req = Permissions::ADD_REACTIONS;
 
             if !utils::user_has_perms(self.channel_id, req)? {
-                return Err(ModelError::InvalidPermissions(req));
+                return Err(ModelError::InvalidPermissions(req).into());
             }
         }
 
@@ -463,7 +463,7 @@ impl Message {
     /// [Send Messages]: permissions/constant.SEND_MESSAGES.html
     pub fn reply(&self, content: &str) -> Result<Message> {
         if let Some(length_over) = Message::overflow_length(content) {
-            return Err(ModelError::MessageTooLong(length_over));
+            return Err(ModelError::MessageTooLong(length_over).into());
         }
 
         #[cfg(feature = "cache")]
@@ -471,7 +471,7 @@ impl Message {
             let req = Permissions::SEND_MESSAGES;
 
             if !utils::user_has_perms(self.channel_id, req)? {
-                return Err(ModelError::InvalidPermissions(req));
+                return Err(ModelError::InvalidPermissions(req).into());
             }
         }
 
@@ -505,7 +505,7 @@ impl Message {
             let req = Permissions::MANAGE_MESSAGES;
 
             if !utils::user_has_perms(self.channel_id, req)? {
-                return Err(ModelError::InvalidPermissions(req));
+                return Err(ModelError::InvalidPermissions(req).into());
             }
         }
 
@@ -516,7 +516,7 @@ impl Message {
         if let Some(content) = map.get("content") {
             if let Value::String(ref content) = *content {
                 if let Some(length_over) = Message::overflow_length(content) {
-                    return Err(ModelError::MessageTooLong(length_over));
+                    return Err(ModelError::MessageTooLong(length_over).into());
                 }
             }
         }
@@ -571,7 +571,7 @@ impl Message {
         } else {
             let overflow = total as u64 - u64::from(constants::EMBED_MAX_LENGTH);
 
-            Err(ModelError::EmbedTooLarge(overflow))
+            Err(ModelError::EmbedTooLarge(overflow).into())
         }
     }
 }

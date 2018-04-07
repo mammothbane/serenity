@@ -1,7 +1,6 @@
 //! Error enum definition wrapping potential model implementation errors.
 
 use super::Permissions;
-use http::HttpError;
 
 /// An error returned from the [`model`] module.
 ///
@@ -64,7 +63,7 @@ use http::HttpError;
 /// [`Error`]: ../enum.Error.html
 /// [`GuildId::ban`]: struct.GuildId.html#method.ban
 /// [`model`]: ./index.html
-#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq, Fail)]
 pub enum ModelError {
     /// Attempting to delete outside the permissible range of bulk message deletions.
     #[fail(display = "Too few/many messages to bulk delete")]

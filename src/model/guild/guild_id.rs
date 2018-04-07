@@ -4,7 +4,6 @@ use model::prelude::*;
 use CACHE;
 #[cfg(feature = "model")]
 use builder::{EditGuild, EditMember, EditRole};
-#[cfg(feature = "model")]
 use internal::prelude::*;
 #[cfg(feature = "model")]
 use model::guild::BanOptions;
@@ -52,13 +51,16 @@ impl GuildId {
         where U: Into<UserId>, BO: BanOptions {
         let dmd = ban_options.dmd();
         if dmd > 7 {
-            return Err(ModelError::DeleteMessageDaysAmount(dmd));
+            return Err(ModelError::DeleteMessageDaysAmount(dmd).into());
         }
 
         let reason = ban_options.reason();
 
         if reason.len() > 512 {
-            return Err(Error::ExceededLimit(reason.to_string(), 512));
+            return Err(SerenityError::ExceededLimit {
+                reason: reason.to_string(),
+                limit: 512,
+            }.into());
         }
 
         http::ban_user(self.0, user.into().0, dmd, &*reason)

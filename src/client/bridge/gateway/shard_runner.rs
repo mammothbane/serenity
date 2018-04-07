@@ -94,7 +94,7 @@ impl<H: EventHandler + Send + Sync + 'static> ShardRunner<H> {
     /// [`Shard`]: ../../../gateway/struct.Shard.html
     /// [`ShardManager`]: struct.ShardManager.html
     /// [`ShardRunnerMessage`]: enum.ShardRunnerMessage.html
-    pub fn run(&mut self) -> Result<(), TryRecvError> {
+    pub fn run(&mut self) -> Result<()> {
         debug!("[ShardRunner {:?}] Running", self.shard.shard_info());
 
         loop {
@@ -109,7 +109,8 @@ impl<H: EventHandler + Send + Sync + 'static> ShardRunner<H> {
                     self.shard.shard_info(),
                 );
 
-                return self.request_restart();
+                self.request_restart();
+                return Ok(());
             }
 
             let pre = self.shard.stage();
@@ -163,10 +164,11 @@ impl<H: EventHandler + Send + Sync + 'static> ShardRunner<H> {
     /// # Errors
     ///
     /// Returns
-    fn action(&mut self, action: &ShardAction) {
+    fn action(&mut self, action: &ShardAction) -> Result<()> {
         match *action {
             ShardAction::Reconnect(ReconnectType::Reidentify) => {
-                self.request_restart()
+                self.request_restart();
+                Ok(())
             },
             ShardAction::Reconnect(ReconnectType::Resume) => {
                 self.shard.resume()
@@ -338,7 +340,7 @@ impl<H: EventHandler + Send + Sync + 'static> ShardRunner<H> {
     // should _never_ happen, as the sending half is kept on the runner.
 
     // Returns whether the shard runner is in a state that can continue.
-    fn recv(&mut self) -> Result<bool, TryRecvError> {
+    fn recv(&mut self) -> Result<bool> {
         loop {
             match self.runner_rx.try_recv() {
                 Ok(value) => {
@@ -368,12 +370,12 @@ impl<H: EventHandler + Send + Sync + 'static> ShardRunner<H> {
     /// Returns a received event, as well as whether reading the potentially
     /// present event was successful.
     fn recv_event(&mut self) -> (Option<Event>, Option<ShardAction>, bool) {
-        let gw_event = match self.shard.client.recv_json() {
+        let gw_event = match self.shard.client.recv_json().map_err(|e| e.downcast::<WebSocketError>()) {
             Ok(Some(value)) => {
                 GatewayEvent::deserialize(value).map(Some).map_err(From::from)
             },
             Ok(None) => Ok(None),
-            Err(Error::WebSocket(WebSocketError::IoError(_))) => {
+            Err(Ok(WebSocketError::IoError(_))) => {
                 // Check that an amount of time at least double the
                 // heartbeat_interval has passed.
                 //
@@ -411,12 +413,13 @@ impl<H: EventHandler + Send + Sync + 'static> ShardRunner<H> {
 
                 return (None, None, true);
             },
-            Err(Error::WebSocket(WebSocketError::NoDataAvailable)) => {
+            Err(Ok(WebSocketError::NoDataAvailable)) => {
                 // This is hit when the websocket client dies this will be
                 // hit every iteration.
                 return (None, None, false);
             },
-            Err(why) => Err(why),
+            Err(Ok(why)) => Err(why.into()),
+            Err(Err(why)) => Err(why.into()),
         };
 
         let event = match gw_event {

@@ -19,7 +19,7 @@ pub type Check = Fn(&mut Context, &Message, &mut Args, &CommandOptions) -> bool
                      + 'static;
 
 pub type HelpFunction = fn(&mut Context, &Message, &HelpOptions, HashMap<String, Arc<CommandGroup>>, &Args)
-                   -> Result<(), Error>;
+                   -> Result<()>;
 
 pub struct Help(pub HelpFunction, pub Arc<HelpOptions>);
 
@@ -30,13 +30,13 @@ impl Debug for Help {
 }
 
 impl HelpCommand for Help {
-    fn execute(&self, c: &mut Context, m: &Message, ho: &HelpOptions,hm: HashMap<String, Arc<CommandGroup>>, a: &Args) -> Result<(), Error> {
+    fn execute(&self, c: &mut Context, m: &Message, ho: &HelpOptions,hm: HashMap<String, Arc<CommandGroup>>, a: &Args) -> Result<()> {
         (self.0)(c, m, ho, hm, a)
     }
 }
 
 pub type BeforeHook = Fn(&mut Context, &Message, &str) -> bool + Send + Sync + 'static;
-pub type AfterHook = Fn(&mut Context, &Message, &str, Result<(), Error>) + Send + Sync + 'static;
+pub type AfterHook = Fn(&mut Context, &Message, &str, Result<()>) + Send + Sync + 'static;
 pub type UnrecognisedCommandHook = Fn(&mut Context, &Message, &str) + Send + Sync + 'static;
 pub(crate) type InternalCommand = Arc<Command>;
 pub type PrefixCheck = Fn(&mut Context, &Message) -> Option<String> + Send + Sync + 'static;
@@ -171,7 +171,7 @@ pub struct HelpOptions {
 }
 
 pub trait HelpCommand: Send + Sync + 'static {
-    fn execute(&self, &mut Context, &Message, &HelpOptions, HashMap<String, Arc<CommandGroup>>, &Args) -> Result<(), Error>;
+    fn execute(&self, &mut Context, &Message, &HelpOptions, HashMap<String, Arc<CommandGroup>>, &Args) -> Result<()>;
 
     fn options(&self) -> Arc<CommandOptions> {
         Arc::clone(&DEFAULT_OPTIONS)
@@ -179,7 +179,7 @@ pub trait HelpCommand: Send + Sync + 'static {
 }
 
 impl HelpCommand for Arc<HelpCommand> {
-    fn execute(&self, c: &mut Context, m: &Message, ho: &HelpOptions, hm: HashMap<String, Arc<CommandGroup>>, a: &Args) -> Result<(), Error> {
+    fn execute(&self, c: &mut Context, m: &Message, ho: &HelpOptions, hm: HashMap<String, Arc<CommandGroup>>, a: &Args) -> Result<()> {
         (**self).execute(c, m, ho, hm, a)
     }
 }
@@ -220,7 +220,7 @@ lazy_static! {
 
 /// A framework command.
 pub trait Command: Send + Sync + 'static {
-    fn execute(&self, &mut Context, &Message, Args) -> Result<(), Error>;
+    fn execute(&self, &mut Context, &Message, Args) -> Result<()>;
 
     fn options(&self) -> Arc<CommandOptions> {
         Arc::clone(&DEFAULT_OPTIONS)
@@ -233,11 +233,11 @@ pub trait Command: Send + Sync + 'static {
     fn before(&self, &mut Context, &Message) -> bool { true }
 
     /// "after" middleware. Is called alongside the global middleware in the framework.
-    fn after(&self, &mut Context, &Message, &Result<(), Error>) { }
+    fn after(&self, &mut Context, &Message, &Result<()>) { }
 }
 
 impl Command for Arc<Command> {
-    fn execute(&self, c: &mut Context, m: &Message, a: Args) -> Result<(), Error> {
+    fn execute(&self, c: &mut Context, m: &Message, a: Args) -> Result<()> {
         (**self).execute(c, m, a)
     }
 
@@ -253,17 +253,17 @@ impl Command for Arc<Command> {
         (**self).before(c, m)
     }
 
-    fn after(&self, c: &mut Context, m: &Message, res: &Result<(), Error>) {
+    fn after(&self, c: &mut Context, m: &Message, res: &Result<()>) {
         (**self).after(c, m, res)
     }
 }
 
-impl<F> Command for F where F: Fn(&mut Context, &Message, Args) -> Result<(), Error>
+impl<F> Command for F where F: Fn(&mut Context, &Message, Args) -> Result<()>
     + Send
     + Sync
     + ?Sized
     + 'static {
-    fn execute(&self, c: &mut Context, m: &Message, a: Args) -> Result<(), Error> {
+    fn execute(&self, c: &mut Context, m: &Message, a: Args) -> Result<()> {
         (*self)(c, m, a)
     }
 }

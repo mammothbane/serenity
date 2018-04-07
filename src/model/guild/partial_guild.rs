@@ -61,9 +61,7 @@ impl PartialGuild {
     /// [Ban Members]: permissions/constant.BAN_MEMBERS.html
     pub fn ban<U: Into<UserId>>(&self, user: U, delete_message_days: u8) -> Result<()> {
         if delete_message_days > 7 {
-            return Err(Error::Model(
-                ModelError::DeleteMessageDaysAmount(delete_message_days),
-            ));
+            return Err(ModelError::DeleteMessageDaysAmount(delete_message_days).into());
         }
 
         self.id.ban(user, &delete_message_days)

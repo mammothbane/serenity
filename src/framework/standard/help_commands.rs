@@ -113,7 +113,7 @@ pub fn with_embeds<H: BuildHasher>(
     help_options: &HelpOptions,
     groups: HashMap<String, Arc<CommandGroup>, H>,
     args: &Args
-) -> Result<(), Error> {
+) -> Result<()> {
     if !args.is_empty() {
         let name = args.full();
 
@@ -357,7 +357,7 @@ pub fn plain<H: BuildHasher>(
     help_options: &HelpOptions,
     groups: HashMap<String, Arc<CommandGroup>, H>,
     args: &Args
-) -> Result<(), Error> {
+) -> Result<()> {
     if !args.is_empty() {
         let name = args.full();
 

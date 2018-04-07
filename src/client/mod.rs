@@ -54,8 +54,6 @@ use model::id::UserId;
 #[cfg(feature = "voice")]
 use self::bridge::voice::ClientVoiceManager;
 
-pub(crate) type Result<T> = StdResult<T, ClientError>;
-
 /// The Client is the way to be able to start sending authenticated requests
 /// over the REST API, as well as initializing a WebSocket connection through
 /// [`Shard`]s. Refer to the [documentation on using sharding][sharding docs]
@@ -860,14 +858,7 @@ impl Client {
                 shard_data[2],
             );
 
-            if let Err(why) = manager.initialize() {
-                error!("Failed to boot a shard: {:?}", why);
-                info!("Shutting down all shards");
-
-                manager.shutdown_all();
-
-                return Err(Error::Client(ClientError::ShardBootFailure));
-            }
+            manager.initialize();
         }
 
         self.shard_manager_worker.run();
@@ -916,24 +907,24 @@ impl Client {
 /// [`ClientError::InvalidToken`]: enum.ClientError.html#variant.InvalidToken
 pub fn validate_token(token: &str) -> Result<()> {
     if token.is_empty() {
-        return Err(Error::Client(ClientError::InvalidToken));
+        return Err(ClientError::InvalidToken.into());
     }
 
     let parts: Vec<&str> = token.split('.').collect();
 
     // Check that the token has a total of 3 parts.
     if parts.len() != 3 {
-        return Err(Error::Client(ClientError::InvalidToken));
+        return Err(ClientError::InvalidToken.into());
     }
 
     // Check that the second part is at least 6 characters long.
     if parts[1].len() < 6 {
-        return Err(Error::Client(ClientError::InvalidToken));
+        return Err(ClientError::InvalidToken.into());
     }
 
     // Check that there is no whitespace before/after the token.
     if token.trim() != token {
-        return Err(Error::Client(ClientError::InvalidToken));
+        return Err(ClientError::InvalidToken.into());
     }
 
     Ok(())

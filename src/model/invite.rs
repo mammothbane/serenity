@@ -9,7 +9,6 @@ use builder::CreateInvite;
 use super::{Permissions, utils as model_utils};
 #[cfg(feature = "model")]
 use {http, utils};
-use http::HttpError;
 
 /// Information about an invite code.
 ///
@@ -61,7 +60,7 @@ impl Invite {
     /// [`GuildChannel`]: struct.GuildChannel.html
     /// [Create Invite]: permissions/constant.CREATE_INVITE.html
     /// [permission]: permissions/index.html
-    pub fn create<C, F>(channel_id: C, f: F) -> StdResult<RichInvite, Error>
+    pub fn create<C, F>(channel_id: C, f: F) -> Result<RichInvite>
         where C: Into<ChannelId>, F: FnOnce(CreateInvite) -> CreateInvite {
         let channel_id = channel_id.into();
 
@@ -91,7 +90,7 @@ impl Invite {
     /// [`ModelError::InvalidPermissions`]: enum.ModelError.html#variant.InvalidPermissions
     /// [Manage Guild]: permissions/constant.MANAGE_GUILD.html
     /// [permission]: permissions/index.html
-    pub fn delete(&self) -> StdResult<Invite, Error> {
+    pub fn delete(&self) -> Result<Invite> {
         #[cfg(feature = "cache")]
         {
             let req = Permissions::MANAGE_GUILD;
@@ -106,7 +105,7 @@ impl Invite {
 
     /// Gets the information about an invite.
     #[allow(unused_mut)]
-    pub fn get(code: &str, stats: bool) -> StdResult<Invite, HttpError> {
+    pub fn get(code: &str, stats: bool) -> Result<Invite> {
         let mut invite = code;
 
         #[cfg(feature = "utils")]
@@ -270,7 +269,7 @@ impl RichInvite {
     /// [`http::delete_invite`]: ../http/fn.delete_invite.html
     /// [Manage Guild]: permissions/constant.MANAGE_GUILD.html
     /// [permission]: permissions/index.html
-    pub fn delete(&self) -> StdResult<Invite, Error> {
+    pub fn delete(&self) -> Result<Invite> {
         #[cfg(feature = "cache")]
         {
             let req = Permissions::MANAGE_GUILD;

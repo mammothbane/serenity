@@ -1,74 +1,31 @@
-use std::{
-    str::FromStr,
-    error::Error as StdError,
-    fmt
-};
+use std::str::FromStr;
+use internal::prelude::*;
+use failure::ResultExt;
 
 /// Defines how an operation on an `Args` method failed.
-#[derive(Debug)]
-pub enum Error<E: StdError> {
+#[derive(Debug, Fail)]
+pub enum ArgError {
     /// "END-OF-STRING", more precisely, there isn't anything to parse anymore.
+    #[fail(display = "reached end of string")]
     Eos,
-    /// A parsing operation failed; the error in it can be of any returned from the `FromStr`
-    /// trait.
-    Parse(E),
 }
-
-impl<E: StdError> From<E> for Error<E> {
-    fn from(e: E) -> Self {
-        Error::Parse(e)
-    }
-}
-
-impl<E: StdError> StdError for Error<E> {
-    fn description(&self) -> &str {
-        use self::Error::*;
-
-        match *self {
-            Eos => "end-of-string",
-            Parse(ref e) => e.description(),
-        }
-    }
-
-    fn cause(&self) -> Option<&StdError> {
-        use self::Error::*;
-
-        match *self {
-            Parse(ref e) => Some(e),
-            _ => None,
-        }
-    }
-}
-
-impl<E: StdError> fmt::Display for Error<E> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        use self::Error::*;
-
-        match *self {
-            Eos => write!(f, "end of string"),
-            Parse(ref e) => fmt::Display::fmt(&e, f),
-        }
-    }
-}
-
-type Result<T, E> = ::std::result::Result<T, Error<E>>;
 
 fn second_quote_occurence(s: &str) -> Option<usize> {
     s.chars().enumerate().filter(|&(_, c)| c == '"').nth(1).map(|(pos, _)| pos)
 }
 
-fn parse_quotes<T: FromStr>(s: &mut String, delimiters: &[String]) -> Result<T, T::Err>
-    where T::Err: StdError {
+fn parse_quotes<T: FromStr>(s: &mut String, delimiters: &[String]) -> Result<T>
+    where T::Err: Fail {
     
     if s.is_empty() {
-        return Err(Error::Eos);
+        return Err(ArgError::Eos.into());
     }
 
     // Fall back to `parse` if there're no quotes at the start
     // or if there is no closing one as well.
     if let Some(mut pos) = second_quote_occurence(s) {
         if s.starts_with('"') {
-            let res = (&s[1..pos]).parse::<T>().map_err(Error::Parse)?;
+            let res = (&s[1..pos]).parse::<T>().context("parsing quotes")?;
             pos += '"'.len_utf8();
 
             for delimiter in delimiters {
@@ -88,16 +45,16 @@ fn parse_quotes<T: FromStr>(s: &mut String, delimiters: &[String]) -> Result<T, 
 }
 
 
-fn parse<T: FromStr>(s: &mut String, delimiters: &[String]) -> Result<T, T::Err>
-    where T::Err: StdError {
+fn parse<T: FromStr>(s: &mut String, delimiters: &[String]) -> Result<T>
+    where T::Err: Fail {
     if s.is_empty() {
-        return Err(Error::Eos);
+        return Err(ArgError::Eos.into());
     }
 
     if delimiters.len() == 1 {
         let delim = &delimiters[0];
         let mut pos = s.find(delim).unwrap_or_else(|| s.len());
-        let res = (&s[..pos]).parse::<T>().map_err(Error::Parse)?;
+        let res = (&s[..pos]).parse::<T>()?;
 
         if pos < s.len() {
             pos += delim.len();
@@ -117,7 +74,7 @@ fn parse<T: FromStr>(s: &mut String, delimiters: &[String]) -> Result<T, T::Err>
             acc
         });
 
-        let res = (&s[..smallest_pos]).parse::<T>().map_err(Error::Parse)?;
+        let res = (&s[..smallest_pos]).parse::<T>()?;
 
         if smallest_pos < s.len() {
             smallest_pos += delimiter_len;
@@ -176,10 +133,10 @@ impl Args {
     /// assert_eq!(args.single::<i32>().unwrap(), 42);
     /// assert_eq!(args.full(), "69");
     /// ```
-    pub fn single<T: FromStr>(&mut self) -> Result<T, T::Err>
-        where T::Err: StdError {
+    pub fn single<T: FromStr>(&mut self) -> Result<T>
+        where T::Err: Fail {
         if self.is_empty() {
-            return Err(Error::Eos);
+            return Err(ArgError::Eos.into());
         }
 
         if let Some(ref mut val) = self.len {
@@ -203,8 +160,8 @@ impl Args {
     /// ```
     ///
     /// [`single`]: #method.single
-    pub fn single_n<T: FromStr>(&self) -> Result<T, T::Err>
-        where T::Err: StdError {
+    pub fn single_n<T: FromStr>(&self) -> Result<T>
+        where T::Err: Fail {
         parse::<T>(&mut self.message.clone(), &self.delimiters)
     }
 
@@ -390,7 +347,7 @@ impl Args {
             return None;
         }
 
-        let mut vec = Vec::with_capacity(i as usize);
+        let mut vec: Vec<String> = Vec::with_capacity(i as usize);
 
         for _ in 0..i {
             vec.push(self.skip()?);
@@ -422,10 +379,10 @@ impl Args {
     /// ```
     ///
     /// [`single`]: #method.single
-    pub fn single_quoted<T: FromStr>(&mut self) -> Result<T, T::Err>
-        where T::Err: StdError {
+    pub fn single_quoted<T: FromStr>(&mut self) -> Result<T>
+        where T::Err: Fail {
         if self.is_empty() {
-            return Err(Error::Eos);
+            return Err(ArgError::Eos.into());
         }
 
         if let Some(ref mut val) = self.len_quoted {
@@ -449,8 +406,8 @@ impl Args {
     /// ```
     ///
     /// [`single_quoted`]: #method.single_quoted
-    pub fn single_quoted_n<T: FromStr>(&self) -> Result<T, T::Err>
-        where T::Err: StdError {
+    pub fn single_quoted_n<T: FromStr>(&self) -> Result<T>
+        where T::Err: Fail {
         parse_quotes::<T>(&mut self.message.clone(), &self.delimiters)
     }
 
@@ -467,10 +424,10 @@ impl Args {
     /// ```
     ///
     /// [`multiple`]: #method.multiple
-    pub fn multiple_quoted<T: FromStr>(mut self) -> Result<Vec<T>, T::Err>
-        where T::Err: StdError {
+    pub fn multiple_quoted<T: FromStr>(mut self) -> Result<Vec<T>>
+        where T::Err: Fail {
         if self.is_empty() {
-            return Err(Error::Eos);
+            return Err(ArgError::Eos.into());
         }
         
         self.iter_quoted::<T>().collect()
@@ -491,7 +448,7 @@ impl Args {
     /// 
     /// [`iter`]: #method.iter
     pub fn iter_quoted<T: FromStr>(&mut self) -> IterQuoted<T>
-        where T::Err: StdError {
+        where T::Err: Fail {
         IterQuoted::new(self)
     }
 
@@ -508,10 +465,10 @@ impl Args {
     ///
     /// assert_eq!(*args.multiple::<i32>().unwrap(), [42, 69]);
     /// ```
-    pub fn multiple<T: FromStr>(mut self) -> Result<Vec<T>, T::Err>
-        where T::Err: StdError {
+    pub fn multiple<T: FromStr>(mut self) -> Result<Vec<T>>
+        where T::Err: Fail {
         if self.is_empty() {
-            return Err(Error::Eos);
+            return Err(ArgError::Eos.into());
         }
 
         self.iter::<T>().collect()
@@ -530,7 +487,7 @@ impl Args {
     /// assert!(args.is_empty());
     /// ```
     pub fn iter<T: FromStr>(&mut self) -> Iter<T> 
-        where T::Err: StdError {
+        where T::Err: Fail {
         Iter::new(self)
     }
 
@@ -550,8 +507,8 @@ impl Args {
     /// assert_eq!(args.find::<i32>().unwrap(), 69);
     /// assert_eq!(args.full(), "c47");
     /// ```
-    pub fn find<T: FromStr>(&mut self) -> Result<T, T::Err>
-        where T::Err: StdError {
+    pub fn find<T: FromStr>(&mut self) -> Result<T>
+        where T::Err: Fail {
         // TODO: Make this efficient
 
         if self.delimiters.len() == 1 as usize {
@@ -565,7 +522,7 @@ impl Args {
                     if let Some(ref mut val) = self.len { if 1 <= *val { *val -= 1 } };
                     res
                 },
-                None => Err(Error::Eos),
+                None => Err(ArgError::Eos.into()),
             }
         } else {
             let msg = self.message.clone();
@@ -588,7 +545,7 @@ impl Args {
                     self.message = words.join(&self.delimiters[0]);
                     res
                 },
-                None => Err(Error::Eos),
+                None => Err(ArgError::Eos.into()),
             }
         }
     }
@@ -607,8 +564,8 @@ impl Args {
     /// ```
     /// 
     /// [`find`]: #method.find
-    pub fn find_n<T: FromStr>(&mut self) -> Result<T, T::Err>
-        where T::Err: StdError {
+    pub fn find_n<T: FromStr>(&mut self) -> Result<T>
+        where T::Err: Fail {
         // Same here.
         if self.delimiters.len() == 1 {
             let pos = self.message
@@ -621,7 +578,7 @@ impl Args {
                     let mut ss = vec.remove(index);
                     parse::<T>(&mut ss, &self.delimiters)
                 },
-                None => Err(Error::Eos),
+                None => Err(ArgError::Eos.into()),
             }
         } else {
             let mut words: Box<Iterator<Item = &str>> = Box::new(Some(&self.message[..]).into_iter());
@@ -638,7 +595,7 @@ impl Args {
                     self.len = Some(words.len());
                     parse::<T>(&mut ss.to_string(), &self.delimiters)
                 },
-                None => Err(Error::Eos),
+                None => Err(ArgError::Eos.into()),
             }
         }
     }
@@ -671,21 +628,22 @@ impl PartialEq for Args {
 impl Eq for Args {}
 
 use std::marker::PhantomData;
+use failure::Fail;
 
 /// Provides `list`'s functionality, but as an iterator.
-pub struct Iter<'a, T: FromStr> where T::Err: StdError {
+pub struct Iter<'a, T: FromStr> where T::Err: Fail {
     args: &'a mut Args,
     _marker: PhantomData<T>,
 }
 
-impl<'a, T: FromStr> Iter<'a, T> where T::Err: StdError {
+impl<'a, T: FromStr> Iter<'a, T> where T::Err: Fail {
     fn new(args: &'a mut Args) -> Self {
         Iter { args, _marker: PhantomData }
     }
 }
 
-impl<'a, T: FromStr> Iterator for Iter<'a, T> where T::Err: StdError  {
-    type Item = Result<T, T::Err>;
+impl<'a, T: FromStr> Iterator for Iter<'a, T> where T::Err: Fail  {
+    type Item = Result<T>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.args.is_empty() {
@@ -699,19 +657,19 @@ impl<'a, T: FromStr> Iterator for Iter<'a, T> where T::Err: StdError  {
 /// Same as [`Iter`], but considers quotes.
 /// 
 /// [`Iter`]: #struct.Iter.html
-pub struct IterQuoted<'a, T: FromStr> where T::Err: StdError {
+pub struct IterQuoted<'a, T: FromStr> where T::Err: Fail {
     args: &'a mut Args,
     _marker: PhantomData<T>,
 }
 
-impl<'a, T: FromStr> IterQuoted<'a, T> where T::Err: StdError {
+impl<'a, T: FromStr> IterQuoted<'a, T> where T::Err: Fail {
     fn new(args: &'a mut Args) -> Self {
         IterQuoted { args, _marker: PhantomData }
     }
 }
 
-impl<'a, T: FromStr> Iterator for IterQuoted<'a, T> where T::Err: StdError  {
-    type Item = Result<T, T::Err>;
+impl<'a, T: FromStr> Iterator for IterQuoted<'a, T> where T::Err: Fail  {
+    type Item = Result<T>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.args.is_empty() {

@@ -10,9 +10,9 @@ mod buckets;
 mod args;
 
 pub use self::args::{
-    Args, 
-    Iter, 
-    Error as ArgError
+    Args,
+    Iter,
+    ArgError as ArgError
 };
 pub(crate) use self::buckets::{Bucket, Ratelimit};
 pub(crate) use self::command::Help;
@@ -46,7 +46,6 @@ use std::{
 use super::Framework;
 use threadpool::ThreadPool;
 use internal::prelude::*;
-use internal::prelude::StdResult;
 
 #[cfg(feature = "cache")]
 use client::CACHE;
@@ -658,7 +657,7 @@ impl StandardFramework {
     /// ```
     pub fn on(self, name: &str,
             f: fn(&mut Context, &Message, Args)
-            -> StdResult<(), Error>) -> Self {
+            -> Result<()>) -> Self {
         self.cmd(name, f)
     }
 
@@ -894,7 +893,7 @@ impl StandardFramework {
     ///     }));
     /// ```
     pub fn after<F>(mut self, f: F) -> Self
-        where F: Fn(&mut Context, &Message, &str, StdResult<(), Error>) + Send + Sync + 'static {
+        where F: Fn(&mut Context, &Message, &str, Result<()>) + Send + Sync + 'static {
         self.after = Some(Arc::new(f));
 
         self

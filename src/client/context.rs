@@ -19,8 +19,6 @@ use http;
 #[cfg(feature = "builder")]
 use utils::{self, VecMap};
 
-type Result<T> = StdResult<T, ClientError>;
-
 /// The context is a general utility struct provided on event dispatches, which
 /// helps with dealing with the current "context" of the event dispatch.
 /// The context also acts as a general high-level interface over the associated

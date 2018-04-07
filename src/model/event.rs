@@ -1192,7 +1192,10 @@ impl<'de> Deserialize<'de> for GatewayEvent {
                     .and_then(EventType::deserialize)
                     .map_err(DeError::custom)?;
                 let payload = map.remove("d").ok_or_else(|| {
-                    Error::Decode("expected gateway event d", Value::Object(map))
+                    SerenityError::Decode {
+                        msg: "expected gateway event d",
+                        value: Value::Object(map),
+                    }
                 }).map_err(DeError::custom)?;
 
                 let x = deserialize_event_with_type(kind, payload)

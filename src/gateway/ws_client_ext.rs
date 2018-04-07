@@ -5,6 +5,8 @@ use model::id::GuildId;
 use std::env::consts;
 use super::Result;
 
+use internal::ws_impl::SenderExt;
+
 pub trait WebSocketGatewayClientExt {
     fn send_chunk_guilds<It>(
         &mut self,

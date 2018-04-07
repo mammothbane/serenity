@@ -79,7 +79,7 @@ impl CreateGroup {
     /// Adds a command to group with a simplified API.
     /// You can return Err(From::from(string)) if there's an error.
     pub fn on(self, name: &str,
-            f: fn(&mut Context, &Message, Args) -> StdResult<(), Error>) -> Self {
+            f: fn(&mut Context, &Message, Args) -> Result<()>) -> Self {
         self.cmd(name, f)
     }
 

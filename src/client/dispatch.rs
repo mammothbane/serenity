@@ -561,15 +561,13 @@ fn handle_event<H: EventHandler + Send + Sync + 'static>(
             feature_cache! {{
                 last_guild_create_time = now!();
 
-                let _ = wait_for_guilds()
-                    .map(move |_| {
-                        let context = context(data, runner_tx, shard_id);
-                        let event_handler = Arc::clone(&event_handler);
+                wait_for_guilds();
+                let context = context(data, runner_tx, shard_id);
+                let event_handler = Arc::clone(&event_handler);
 
-                        threadpool.execute(move || {
-                            event_handler.ready(context, event.ready);
-                        });
-                    });
+                threadpool.execute(move || {
+                    event_handler.ready(context, event.ready);
+                });
             } else {
                 let context = context(data, runner_tx, shard_id);
                 let event_handler = Arc::clone(&event_handler);

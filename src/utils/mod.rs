@@ -354,7 +354,7 @@ pub fn parse_emoji(mention: &str) -> Option<EmojiIdentifier> {
 /// ```
 ///
 /// [`EditProfile::avatar`]: ../builder/struct.EditProfile.html#method.avatar
-pub fn read_image<P: AsRef<Path>>(path: P) -> Result<String, Error> {
+pub fn read_image<P: AsRef<Path>>(path: P) -> Result<String> {
     let path = path.as_ref();
 
     let mut v = Vec::default();

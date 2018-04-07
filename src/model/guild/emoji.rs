@@ -7,8 +7,6 @@ use std::fmt::{
 use super::super::id::{EmojiId, RoleId};
 
 #[cfg(all(feature = "cache", feature = "model"))]
-use internal::prelude::*;
-#[cfg(all(feature = "cache", feature = "model"))]
 use std::mem;
 #[cfg(all(feature = "cache", feature = "model"))]
 use super::super::{ModelError, Result};
@@ -81,7 +79,7 @@ impl Emoji {
     pub fn delete(&self) -> Result<()> {
         match self.find_guild_id() {
             Some(guild_id) => http::delete_emoji(guild_id.0, self.id.0),
-            None => Err(Error::Model(ModelError::ItemMissing)),
+            None => Err(ModelError::ItemMissing.into()),
         }
     }
 
@@ -131,7 +129,7 @@ impl Emoji {
                     Err(why) => Err(why),
                 }
             },
-            None => Err(Error::Model(ModelError::ItemMissing)),
+            None => Err(ModelError::ItemMissing.into()),
         }
     }
 

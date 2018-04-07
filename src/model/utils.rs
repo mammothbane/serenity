@@ -6,15 +6,35 @@ use std::{
     hash::Hash,
     sync::Arc
 };
-use super::prelude::*;
 
-#[cfg(feature = "cache")]
 use internal::prelude::*;
 
 #[cfg(all(feature = "cache", feature = "model"))]
 use super::permissions::Permissions;
 #[cfg(all(feature = "cache", feature = "model"))]
 use CACHE;
+use serde::{Deserialize, Deserializer};
+use model::{
+    id::{
+        EmojiId,
+        ChannelId,
+        RoleId,
+        UserId,
+    },
+    channel::{
+        Channel,
+        GuildChannel,
+    },
+    user::User,
+    voice::VoiceState,
+    ModelError,
+    gateway::Presence,
+    guild::{
+        Emoji,
+        Member,
+        Role,
+    },
+};
 
 pub fn default_true() -> bool {
     true
@@ -212,7 +232,7 @@ pub fn user_has_perms(channel_id: ChannelId, mut permissions: Permissions) -> Re
 
     let channel = match cache.channel(channel_id) {
         Some(channel) => channel,
-        None => return Err(ModelError::ItemMissing),
+        None => return Err(ModelError::ItemMissing.into()),
     };
 
     let guild_id = match channel {
@@ -234,7 +254,7 @@ pub fn user_has_perms(channel_id: ChannelId, mut permissions: Permissions) -> Re
 
     let guild = match cache.guild(guild_id) {
         Some(guild) => guild,
-        None => return Err(ModelError::ItemMissing),
+        None => return Err(ModelError::ItemMissing.into()),
     };
 
     let perms = guild
@@ -252,16 +272,16 @@ macro_rules! num_visitors {
             #[derive(Debug)]
             pub struct $visitor;
 
-            impl<'de> Visitor<'de> for $visitor {
+            impl<'de> ::serde::de::Visitor<'de> for $visitor {
                 type Value = $type;
 
-                fn expecting(&self, formatter: &mut Formatter) -> FmtResult {
+                fn expecting(&self, formatter: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
                     formatter.write_str("identifier")
                 }
 
-                fn visit_str<E: DeError>(self, v: &str) -> StdResult<Self::Value, E> {
+                fn visit_str<E: DeError>(self, v: &str) -> ::std::result::Result<Self::Value, E> {
                     v.parse::<$type>().map_err(|_| {
-                        let mut s = String::with_capacity(32);
+                        let mut s = ::std::string::String::with_capacity(32);
                         s.push_str("Unknown ");
                         s.push_str(stringify!($type));
                         s.push_str(" value: ");

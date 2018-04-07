@@ -1,7 +1,7 @@
 use gateway::InterMessage;
 use model::prelude::*;
 use super::{ShardClientMessage, ShardRunnerMessage};
-use std::sync::mpsc::{SendError, Sender};
+use std::sync::mpsc::Sender;
 use websocket::message::OwnedMessage;
 use internal::prelude::*;
 
@@ -272,7 +272,7 @@ impl ShardMessenger {
 
     #[inline]
     fn send(&self, msg: ShardRunnerMessage)
-        -> StdResult<(), SendError<InterMessage>> {
-        self.tx.send(InterMessage::Client(ShardClientMessage::Runner(msg)))
+        -> Result<()> {
+        self.tx.send(InterMessage::Client(ShardClientMessage::Runner(msg))).map_err(|e| e.into())
     }
 }
