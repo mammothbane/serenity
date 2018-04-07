@@ -212,7 +212,7 @@ pub fn user_has_perms(channel_id: ChannelId, mut permissions: Permissions) -> Re
 
     let channel = match cache.channel(channel_id) {
         Some(channel) => channel,
-        None => return Err(Error::Model(ModelError::ItemMissing)),
+        None => return Err(ModelError::ItemMissing),
     };
 
     let guild_id = match channel {
@@ -234,7 +234,7 @@ pub fn user_has_perms(channel_id: ChannelId, mut permissions: Permissions) -> Re
 
     let guild = match cache.guild(guild_id) {
         Some(guild) => guild,
-        None => return Err(Error::Model(ModelError::ItemMissing)),
+        None => return Err(ModelError::ItemMissing),
     };
 
     let perms = guild

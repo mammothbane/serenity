@@ -1,10 +1,9 @@
 use chrono::Utc;
 use constants::{self, OpCode};
 use gateway::{CurrentPresence, WsClient};
-use internal::prelude::*;
-use internal::ws_impl::SenderExt;
 use model::id::GuildId;
 use std::env::consts;
+use super::Result;
 
 pub trait WebSocketGatewayClientExt {
     fn send_chunk_guilds<It>(

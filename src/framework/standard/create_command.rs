@@ -2,8 +2,7 @@ pub use super::{
     Args, 
     Command, 
     CommandGroup, 
-    CommandOptions, 
-    CommandError
+    CommandOptions,
 };
 
 use client::Context;
@@ -12,9 +11,10 @@ use model::{
     Permissions
 };
 use std::sync::Arc;
+use internal::prelude::*;
 
 pub enum FnOrCommand {
-    Fn(fn(&mut Context, &Message, Args) -> Result<(), CommandError>),
+    Fn(fn(&mut Context, &Message, Args) -> Result<(), Error>),
     Command(Arc<Command>),
     CommandWithOptions(Arc<Command>),
 }
@@ -27,7 +27,7 @@ impl Default for FnOrCommand {
 
 type Init = Fn() + Send + Sync + 'static;
 type Before = Fn(&mut Context, &Message) -> bool + Send + Sync + 'static;
-type After = Fn(&mut Context, &Message, &Result<(), CommandError>) + Send + Sync + 'static;
+type After = Fn(&mut Context, &Message, &Result<(), Error>) + Send + Sync + 'static;
 
 #[derive(Default)]
 pub struct Handlers {
@@ -136,7 +136,7 @@ impl CreateCommand {
 
     /// A function that can be called when a command is received.
     /// You can return `Err(string)` if there's an error.
-    pub fn exec(mut self, func: fn(&mut Context, &Message, Args) -> Result<(), CommandError>) -> Self {
+    pub fn exec(mut self, func: fn(&mut Context, &Message, Args) -> Result<(), Error>) -> Self {
         self.1 = FnOrCommand::Fn(func);
 
         self
@@ -256,7 +256,7 @@ impl CreateCommand {
     ///
     /// This is similiar to implementing the `after` function on `Command`.
     pub fn after<F: Send + Sync + 'static>(mut self, f: F) -> Self
-        where F: Fn(&mut Context, &Message, &Result<(), CommandError>) {
+        where F: Fn(&mut Context, &Message, &Result<(), Error>) {
         self.2.after = Some(Arc::new(f));
 
         self
@@ -266,7 +266,7 @@ impl CreateCommand {
         struct A<C: Command>(Arc<CommandOptions>, C, Handlers);
 
         impl<C: Command> Command for A<C> {
-            fn execute(&self, c: &mut Context, m: &Message, a: Args) -> Result<(), CommandError> {
+            fn execute(&self, c: &mut Context, m: &Message, a: Args) -> Result<(), Error> {
                 self.1.execute(c, m, a)
             }
 
@@ -286,7 +286,7 @@ impl CreateCommand {
                 true
             }
 
-            fn after(&self, c: &mut Context, m: &Message, res: &Result<(), CommandError>) {
+            fn after(&self, c: &mut Context, m: &Message, res: &Result<(), Error>) {
                 if let Some(ref after) = self.2.after {
                     (after)(c, m, res);
                 }

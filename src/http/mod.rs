@@ -27,7 +27,7 @@ pub mod ratelimiting;
 
 mod error;
 
-pub use self::error::Error as HttpError;
+pub use self::error::HttpError;
 pub use hyper::status::{StatusClass, StatusCode};
 
 use constants;
@@ -63,6 +63,8 @@ use std::{
     path::{Path, PathBuf},
     sync::Arc
 };
+
+pub(crate) type Result<T> = StdResult<T, HttpError>;
 
 /// An method used for ratelimiting special routes.
 ///
@@ -236,8 +238,7 @@ pub fn create_channel(guild_id: u64, map: &Value) -> Result<GuildChannel> {
         guild_id
     );
 
-    serde_json::from_reader::<HyperResponse, GuildChannel>(response)
-        .map_err(From::from)
+    serde_json::from_reader::<HyperResponse, GuildChannel>(response).map_err(From::from)
 }
 
 /// Creates an emoji in the given [`Guild`] with the given data.
@@ -250,7 +251,7 @@ pub fn create_channel(guild_id: u64, map: &Value) -> Result<GuildChannel> {
 /// [`Context::create_emoji`]: ../struct.Context.html#method.create_emoji
 /// [`Guild`]: ../model/guild/struct.Guild.html
 /// [Manage Emojis]: ../model/permissions/constant.MANAGE_EMOJIS.html
-pub fn create_emoji(guild_id: u64, map: &Value) -> Result<Emoji> {
+pub fn create_emoji(guild_id: u64, map: &Value) -> StdResult<Emoji, Error> {
     let body = map.to_string();
     let response = request!(
         Route::GuildsIdEmojis(guild_id),
@@ -344,7 +345,7 @@ pub fn create_guild_integration(guild_id: u64, integration_id: u64, map: &Value)
 /// [`RichInvite`]: ../model/guild/struct.RichInvite.html
 /// [Create Invite]: ../model/permissions/constant.CREATE_INVITE.html
 /// [docs]: https://discordapp.com/developers/docs/resources/channel#create-channel-invite
-pub fn create_invite(channel_id: u64, map: &JsonMap) -> Result<RichInvite> {
+pub fn create_invite(channel_id: u64, map: &JsonMap) -> StdResult<RichInvite, Error> {
     let body = serde_json::to_string(map)?;
     let response = request!(
         Route::ChannelsIdInvites(channel_id),
@@ -1409,7 +1410,7 @@ pub fn get_guild_webhooks(guild_id: u64) -> Result<Vec<Webhook>> {
 /// ```
 ///
 /// [docs]: https://discordapp.com/developers/docs/resources/user#get-current-user-guilds
-pub fn get_guilds(target: &GuildPagination, limit: u64) -> Result<Vec<GuildInfo>> {
+pub fn get_guilds(target: &GuildPagination, limit: u64) -> StdResult<Vec<GuildInfo>, Error> {
     let mut uri = format!("/users/@me/guilds?limit={}", limit);
 
     match *target {
@@ -1512,7 +1513,7 @@ pub fn get_reaction_users(channel_id: u64,
                           reaction_type: &ReactionType,
                           limit: u8,
                           after: Option<u64>)
-                          -> Result<Vec<User>> {
+                          -> StdResult<Vec<User>, Error> {
     let mut uri = format!(
         "/channels/{}/messages/{}/reactions/{}?limit={}",
         channel_id,
@@ -1768,7 +1769,7 @@ pub fn send_files<'a, T, It: IntoIterator<Item=T>>(channel_id: u64, files: It, m
     let response = request.send()?;
 
     if response.status.class() != StatusClass::Success {
-        return Err(Error::Http(HttpError::UnsuccessfulRequest(response)));
+        return Err(HttpError::UnsuccessfulRequest { status: response.status });
     }
 
     serde_json::from_reader::<HyperResponse, Message>(response)
@@ -1892,7 +1893,7 @@ fn request<'a, F>(route: Route, f: F) -> Result<HyperResponse>
     if response.status.class() == StatusClass::Success {
         Ok(response)
     } else {
-        Err(Error::Http(HttpError::UnsuccessfulRequest(response)))
+        Err(HttpError::UnsuccessfulRequest { status: response.status })
     }
 }
 
@@ -1917,7 +1918,7 @@ fn verify(expected: u16, response: HyperResponse) -> Result<()> {
     debug!("Expected {}, got {}", expected, response.status);
     trace!("Unsuccessful response: {:?}", response);
 
-    Err(Error::Http(HttpError::UnsuccessfulRequest(response)))
+    Err(HttpError::UnsuccessfulRequest { status: response.status })
 }
 
 /// Enum that allows a user to pass a `Path` or a `File` type to `send_files`

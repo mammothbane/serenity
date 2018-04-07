@@ -15,9 +15,11 @@ use internal::prelude::*;
 #[cfg(all(feature = "builder", feature = "cache"))]
 use super::CACHE;
 #[cfg(feature = "builder")]
-use {Result, http};
+use http;
 #[cfg(feature = "builder")]
 use utils::{self, VecMap};
+
+type Result<T> = StdResult<T, ClientError>;
 
 /// The context is a general utility struct provided on event dispatches, which
 /// helps with dealing with the current "context" of the event dispatch.

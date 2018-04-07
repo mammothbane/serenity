@@ -5,12 +5,11 @@ use super::prelude::*;
 
 #[cfg(feature = "model")]
 use builder::CreateInvite;
-#[cfg(feature = "model")]
-use internal::prelude::*;
 #[cfg(all(feature = "cache", feature = "model"))]
 use super::{Permissions, utils as model_utils};
 #[cfg(feature = "model")]
 use {http, utils};
+use http::HttpError;
 
 /// Information about an invite code.
 ///
@@ -62,7 +61,7 @@ impl Invite {
     /// [`GuildChannel`]: struct.GuildChannel.html
     /// [Create Invite]: permissions/constant.CREATE_INVITE.html
     /// [permission]: permissions/index.html
-    pub fn create<C, F>(channel_id: C, f: F) -> Result<RichInvite>
+    pub fn create<C, F>(channel_id: C, f: F) -> StdResult<RichInvite, Error>
         where C: Into<ChannelId>, F: FnOnce(CreateInvite) -> CreateInvite {
         let channel_id = channel_id.into();
 
@@ -71,13 +70,13 @@ impl Invite {
             let req = Permissions::CREATE_INVITE;
 
             if !model_utils::user_has_perms(channel_id, req)? {
-                return Err(Error::Model(ModelError::InvalidPermissions(req)));
+                return Err(ModelError::InvalidPermissions(req).into());
             }
         }
 
         let map = utils::vecmap_to_json_map(f(CreateInvite::default()).0);
 
-        http::create_invite(channel_id.0, &map)
+        http::create_invite(channel_id.0, &map).into()
     }
 
     /// Deletes the invite.
@@ -92,22 +91,22 @@ impl Invite {
     /// [`ModelError::InvalidPermissions`]: enum.ModelError.html#variant.InvalidPermissions
     /// [Manage Guild]: permissions/constant.MANAGE_GUILD.html
     /// [permission]: permissions/index.html
-    pub fn delete(&self) -> Result<Invite> {
+    pub fn delete(&self) -> StdResult<Invite, Error> {
         #[cfg(feature = "cache")]
         {
             let req = Permissions::MANAGE_GUILD;
 
             if !model_utils::user_has_perms(self.channel.id, req)? {
-                return Err(Error::Model(ModelError::InvalidPermissions(req)));
+                return Err(ModelError::InvalidPermissions(req).into());
             }
         }
 
-        http::delete_invite(&self.code)
+        http::delete_invite(&self.code).into()
     }
 
     /// Gets the information about an invite.
     #[allow(unused_mut)]
-    pub fn get(code: &str, stats: bool) -> Result<Invite> {
+    pub fn get(code: &str, stats: bool) -> StdResult<Invite, HttpError> {
         let mut invite = code;
 
         #[cfg(feature = "utils")]
@@ -271,17 +270,17 @@ impl RichInvite {
     /// [`http::delete_invite`]: ../http/fn.delete_invite.html
     /// [Manage Guild]: permissions/constant.MANAGE_GUILD.html
     /// [permission]: permissions/index.html
-    pub fn delete(&self) -> Result<Invite> {
+    pub fn delete(&self) -> StdResult<Invite, Error> {
         #[cfg(feature = "cache")]
         {
             let req = Permissions::MANAGE_GUILD;
 
             if !model_utils::user_has_perms(self.channel.id, req)? {
-                return Err(Error::Model(ModelError::InvalidPermissions(req)));
+                return Err(ModelError::InvalidPermissions(req).into());
             }
         }
 
-        http::delete_invite(&self.code)
+        http::delete_invite(&self.code).into()
     }
 
     /// Returns a URL to use for the invite.

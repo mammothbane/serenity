@@ -1,5 +1,4 @@
 use gateway::Shard;
-use internal::prelude::*;
 use parking_lot::Mutex;
 use std::{
     collections::{HashMap, VecDeque},
@@ -30,6 +29,7 @@ use ::gateway::ConnectionStage;
 use client::bridge::voice::ClientVoiceManager;
 #[cfg(feature = "framework")]
 use framework::Framework;
+use internal::prelude::*;
 
 const WAIT_BETWEEN_BOOTS_IN_SECONDS: u64 = 5;
 
@@ -169,7 +169,7 @@ impl<H: EventHandler + Send + Sync + 'static> ShardQueuer<H> {
         self.last_start = Some(Instant::now());
     }
 
-    fn start(&mut self, shard_id: u64, shard_total: u64) -> Result<()> {
+    fn start(&mut self, shard_id: u64, shard_total: u64) -> StdResult<(), Error> {
         let shard_info = [shard_id, shard_total];
 
         let shard = Shard::new(

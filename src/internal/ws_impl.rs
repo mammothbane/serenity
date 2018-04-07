@@ -9,20 +9,20 @@ use websocket::{
 };
 
 pub trait ReceiverExt {
-    fn recv_json(&mut self) -> Result<Option<Value>>;
+    fn recv_json(&mut self) -> Result<Option<Value>, Error>;
 }
 
 pub trait SenderExt {
-    fn send_json(&mut self, value: &Value) -> Result<()>;
+    fn send_json(&mut self, value: &Value) -> Result<(), Error>;
 }
 
 impl ReceiverExt for WsClient<TlsStream<TcpStream>> {
-    fn recv_json(&mut self) -> Result<Option<Value>> {
+    fn recv_json(&mut self) -> Result<Option<Value>, Error> {
         Ok(match self.recv_message()? {
             OwnedMessage::Binary(bytes) => {
                 serde_json::from_reader(ZlibDecoder::new(&bytes[..])).map(Some)?
             },
-            OwnedMessage::Close(data) => return Err(Error::Gateway(GatewayError::Closed(data))),
+            OwnedMessage::Close(data) => return Err(GatewayError::Closed(data).into()),
             OwnedMessage::Text(payload) => {
                 serde_json::from_str(&payload).map(Some)?
             },
@@ -38,7 +38,7 @@ impl ReceiverExt for WsClient<TlsStream<TcpStream>> {
 }
 
 impl SenderExt for WsClient<TlsStream<TcpStream>> {
-    fn send_json(&mut self, value: &Value) -> Result<()> {
+    fn send_json(&mut self, value: &Value) -> Result<(), Error> {
         serde_json::to_string(value)
             .map(OwnedMessage::Text)
             .map_err(Error::from)

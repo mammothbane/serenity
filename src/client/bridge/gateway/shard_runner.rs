@@ -94,7 +94,7 @@ impl<H: EventHandler + Send + Sync + 'static> ShardRunner<H> {
     /// [`Shard`]: ../../../gateway/struct.Shard.html
     /// [`ShardManager`]: struct.ShardManager.html
     /// [`ShardRunnerMessage`]: enum.ShardRunnerMessage.html
-    pub fn run(&mut self) -> Result<()> {
+    pub fn run(&mut self) -> Result<(), TryRecvError> {
         debug!("[ShardRunner {:?}] Running", self.shard.shard_info());
 
         loop {
@@ -129,7 +129,8 @@ impl<H: EventHandler + Send + Sync + 'static> ShardRunner<H> {
 
             match action {
                 Some(ShardAction::Reconnect(ReconnectType::Reidentify)) => {
-                    return self.request_restart()
+                    self.request_restart();
+                    return Ok(());
                 },
                 Some(other) => {
                     let _ = self.action(&other);
@@ -142,7 +143,8 @@ impl<H: EventHandler + Send + Sync + 'static> ShardRunner<H> {
             }
 
             if !successful && !self.shard.stage().is_connecting() {
-                return self.request_restart();
+                self.request_restart();
+                return Ok(());
             }
         }
     }
@@ -161,7 +163,7 @@ impl<H: EventHandler + Send + Sync + 'static> ShardRunner<H> {
     /// # Errors
     ///
     /// Returns
-    fn action(&mut self, action: &ShardAction) -> Result<()> {
+    fn action(&mut self, action: &ShardAction) {
         match *action {
             ShardAction::Reconnect(ReconnectType::Reidentify) => {
                 self.request_restart()
@@ -336,7 +338,7 @@ impl<H: EventHandler + Send + Sync + 'static> ShardRunner<H> {
     // should _never_ happen, as the sending half is kept on the runner.
 
     // Returns whether the shard runner is in a state that can continue.
-    fn recv(&mut self) -> Result<bool> {
+    fn recv(&mut self) -> Result<bool, TryRecvError> {
         loop {
             match self.runner_rx.try_recv() {
                 Ok(value) => {
@@ -452,7 +454,7 @@ impl<H: EventHandler + Send + Sync + 'static> ShardRunner<H> {
         (event, action, true)
     }
 
-    fn request_restart(&self) -> Result<()> {
+    fn request_restart(&self) {
         self.update_manager();
 
         debug!(
@@ -467,8 +469,6 @@ impl<H: EventHandler + Send + Sync + 'static> ShardRunner<H> {
         {
             self.voice_manager.lock().manager_remove(&shard_id.0);
         }
-
-        Ok(())
     }
 
     fn update_manager(&self) {

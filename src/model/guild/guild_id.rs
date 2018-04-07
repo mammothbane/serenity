@@ -52,7 +52,7 @@ impl GuildId {
         where U: Into<UserId>, BO: BanOptions {
         let dmd = ban_options.dmd();
         if dmd > 7 {
-            return Err(Error::Model(ModelError::DeleteMessageDaysAmount(dmd)));
+            return Err(ModelError::DeleteMessageDaysAmount(dmd));
         }
 
         let reason = ban_options.reason();

@@ -19,6 +19,7 @@ use std::mem;
 use super::channel::Message;
 #[cfg(feature = "model")]
 use {http, utils};
+use http::HttpError;
 
 /// A representation of a webhook, which is a low-effort way to post messages to
 /// channels. They do not necessarily require a bot user or authentication to
@@ -62,7 +63,7 @@ impl Webhook {
     ///
     /// [`http::delete_webhook_with_token`]: ../http/fn.delete_webhook_with_token.html
     #[inline]
-    pub fn delete(&self) -> Result<()> { http::delete_webhook_with_token(self.id.0, &self.token) }
+    pub fn delete(&self) -> StdResult<(), HttpError> { http::delete_webhook_with_token(self.id.0, &self.token) }
 
     ///
     /// Edits the webhook in-place. All fields are optional.
@@ -110,7 +111,7 @@ impl Webhook {
     ///
     /// [`http::edit_webhook`]: ../http/fn.edit_webhook.html
     /// [`http::edit_webhook_with_token`]: ../http/fn.edit_webhook_with_token.html
-    pub fn edit(&mut self, name: Option<&str>, avatar: Option<&str>) -> Result<()> {
+    pub fn edit(&mut self, name: Option<&str>, avatar: Option<&str>) -> StdResult<(), HttpError> {
         if name.is_none() && avatar.is_none() {
             return Ok(());
         }
@@ -193,7 +194,7 @@ impl Webhook {
     pub fn execute<F: FnOnce(ExecuteWebhook) -> ExecuteWebhook>(&self,
                                                                 wait: bool,
                                                                 f: F)
-                                                                -> Result<Option<Message>> {
+                                                                -> StdResult<Option<Message>, HttpError> {
         let map = utils::vecmap_to_json_map(f(ExecuteWebhook::default()).0);
 
         http::execute_webhook(self.id.0, &self.token, wait, &map)
@@ -206,15 +207,11 @@ impl Webhook {
     /// authentication is not required.
     ///
     /// [`http::get_webhook_with_token`]: ../http/fn.get_webhook_with_token.html
-    pub fn refresh(&mut self) -> Result<()> {
-        match http::get_webhook_with_token(self.id.0, &self.token) {
-            Ok(replacement) => {
+    pub fn refresh(&mut self) -> StdResult<(), HttpError> {
+        http::get_webhook_with_token(self.id.0, &self.token)
+            .and_then(|replacement| {
                 let _ = mem::replace(self, replacement);
-
-                Ok(())
-            },
-            Err(why) => Err(why),
-        }
+            })
     }
 }
 
@@ -226,5 +223,5 @@ impl WebhookId {
     ///
     /// [Manage Webhooks]: permissions/constant.MANAGE_WEBHOOKS.html
     #[inline]
-    pub fn get(&self) -> Result<Webhook> { http::get_webhook(self.0) }
+    pub fn get(&self) -> StdResult<Webhook, HttpError> { http::get_webhook(self.0) }
 }

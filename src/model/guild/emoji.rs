@@ -11,7 +11,7 @@ use internal::prelude::*;
 #[cfg(all(feature = "cache", feature = "model"))]
 use std::mem;
 #[cfg(all(feature = "cache", feature = "model"))]
-use super::super::ModelError;
+use super::super::{ModelError, Result};
 #[cfg(all(feature = "cache", feature = "model"))]
 use super::super::id::GuildId;
 #[cfg(all(feature = "cache", feature = "model"))]

@@ -148,14 +148,12 @@ fn handle_event<H: EventHandler + Send + Sync + 'static>(
     let mut last_guild_create_time = now!();
 
     #[cfg(feature = "cache")]
-    let wait_for_guilds = move || -> ::Result<()> {
+    let wait_for_guilds = move || {
         let unavailable_guilds = CACHE.read().unavailable_guilds.len();
 
         while unavailable_guilds != 0 && (now!() < last_guild_create_time + 2000) {
             thread::sleep(time::Duration::from_millis(500));
         }
-
-        Ok(())
     };
 
     match event {

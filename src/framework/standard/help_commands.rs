@@ -42,11 +42,11 @@ use super::{
     CommandGroup, 
     CommandOrAlias, 
     HelpOptions, 
-    CommandOptions, 
-    CommandError, 
+    CommandOptions,
     HelpBehaviour
 };
 use utils::Colour;
+use internal::prelude::*;
 
 fn error_embed(channel_id: &ChannelId, input: &str, colour: Colour) {
     let _ = channel_id.send_message(|m| {
@@ -113,7 +113,7 @@ pub fn with_embeds<H: BuildHasher>(
     help_options: &HelpOptions,
     groups: HashMap<String, Arc<CommandGroup>, H>,
     args: &Args
-) -> Result<(), CommandError> {
+) -> Result<(), Error> {
     if !args.is_empty() {
         let name = args.full();
 
@@ -357,7 +357,7 @@ pub fn plain<H: BuildHasher>(
     help_options: &HelpOptions,
     groups: HashMap<String, Arc<CommandGroup>, H>,
     args: &Args
-) -> Result<(), CommandError> {
+) -> Result<(), Error> {
     if !args.is_empty() {
         let name = args.full();
 

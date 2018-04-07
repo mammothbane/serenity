@@ -54,7 +54,7 @@ use std::{
     thread, 
     i64
 };
-use super::{HttpError, LightMethod};
+use super::{HttpError, LightMethod, Result};
 
 lazy_static! {
     /// The global mutex is a mutex unlocked and then immediately re-locked

@@ -143,7 +143,7 @@ impl Member {
     pub fn ban<BO: BanOptions>(&self, ban_options: &BO) -> Result<()> {
         let dmd = ban_options.dmd();
         if dmd > 7 {
-            return Err(Error::Model(ModelError::DeleteMessageDaysAmount(dmd)));
+            return Err(ModelError::DeleteMessageDaysAmount(dmd));
         }
 
         let reason = ban_options.reason();
@@ -292,7 +292,7 @@ impl Member {
     ///     Err(Error::Model(ModelError::GuildNotFound)) => {
     ///         println!("Couldn't determine guild of member");
     ///     },
-    ///     Err(Error::Model(ModelError::InvalidPermissions(missing_perms))) => {
+    ///     Err(ModelError::InvalidPermissions(missing_perms)) => {
     ///         println!("Didn't have permissions; missing: {:?}", missing_perms);
     ///     },
     ///     _ => {},
@@ -320,7 +320,7 @@ impl Member {
                 let reader = guild.read();
 
                 if !reader.has_perms(req) {
-                    return Err(Error::Model(ModelError::InvalidPermissions(req)));
+                    return Err(ModelError::InvalidPermissions(req));
                 }
 
                 reader.check_hierarchy(self.user.read().id)?;

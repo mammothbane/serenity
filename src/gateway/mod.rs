@@ -54,7 +54,7 @@ mod shard;
 mod ws_client_ext;
 
 pub use self::{
-    error::Error as GatewayError,
+    error::GatewayError,
     shard::Shard,
     ws_client_ext::WebSocketGatewayClientExt
 };
@@ -72,7 +72,9 @@ use websocket::sync::{
 
 #[cfg(feature = "client")]
 use client::bridge::gateway::ShardClientMessage;
+use internal::prelude::StdResult;
 
+pub(crate) type Result<T> = StdResult<T, GatewayError>;
 pub type CurrentPresence = (Option<Game>, OnlineStatus);
 pub type WsClient = Client<TlsStream<TcpStream>>;
 

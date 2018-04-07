@@ -1,8 +1,7 @@
 pub use super::command::{
     Command, 
     CommandGroup, 
-    CommandOptions, 
-    Error as CommandError
+    CommandOptions,
 };
 pub(crate) use super::command::CommandOrAlias;
 pub use super::{
@@ -15,6 +14,7 @@ use client::Context;
 use model::channel::Message;
 use model::Permissions;
 use std::sync::Arc;
+use internal::prelude::*;
 
 /// Used to create command groups
 ///
@@ -79,7 +79,7 @@ impl CreateGroup {
     /// Adds a command to group with a simplified API.
     /// You can return Err(From::from(string)) if there's an error.
     pub fn on(self, name: &str,
-            f: fn(&mut Context, &Message, Args) -> Result<(), CommandError>) -> Self {
+            f: fn(&mut Context, &Message, Args) -> StdResult<(), Error>) -> Self {
         self.cmd(name, f)
     }
 

@@ -11,6 +11,7 @@ use std::{
 };
 use utils::Colour;
 use super::{Args, Configuration, HelpBehaviour};
+use internal::prelude::*;
 
 pub type Check = Fn(&mut Context, &Message, &mut Args, &CommandOptions) -> bool
                      + Send
@@ -51,17 +52,6 @@ impl fmt::Debug for CommandOrAlias {
             CommandOrAlias::Alias(ref s) => f.debug_tuple("CommandOrAlias::Alias").field(&s).finish(),
             _ => Ok(())
         }
-    }
-}
-
-/// An error from a command.
-#[derive(Clone, Debug)]
-pub struct Error(pub String);
-
-// TODO: Have seperate `From<(&)String>` and `From<&str>` impls via specialization
-impl<D: fmt::Display> From<D> for Error {
-    fn from(d: D) -> Self {
-        Error(d.to_string())
     }
 }
 

@@ -123,7 +123,7 @@ impl GuildChannel {
             let req = Permissions::CREATE_INVITE;
 
             if !utils::user_has_perms(self.id, req)? {
-                return Err(Error::Model(ModelError::InvalidPermissions(req)));
+                return Err(ModelError::InvalidPermissions(req));
             }
         }
 
@@ -247,7 +247,7 @@ impl GuildChannel {
             let req = Permissions::MANAGE_CHANNELS;
 
             if !utils::user_has_perms(self.id, req)? {
-                return Err(Error::Model(ModelError::InvalidPermissions(req)));
+                return Err(ModelError::InvalidPermissions(req));
             }
         }
 
@@ -323,7 +323,7 @@ impl GuildChannel {
             let req = Permissions::MANAGE_CHANNELS;
 
             if !utils::user_has_perms(self.id, req)? {
-                return Err(Error::Model(ModelError::InvalidPermissions(req)));
+                return Err(ModelError::InvalidPermissions(req));
             }
         }
 
@@ -620,7 +620,7 @@ impl GuildChannel {
             let req = Permissions::SEND_MESSAGES;
 
             if !utils::user_has_perms(self.id, req)? {
-                return Err(Error::Model(ModelError::InvalidPermissions(req)));
+                return Err(ModelError::InvalidPermissions(req));
             }
         }
 

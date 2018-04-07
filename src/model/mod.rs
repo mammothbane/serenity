@@ -37,7 +37,7 @@ pub mod user;
 pub mod voice;
 pub mod webhook;
 
-pub use self::error::Error as ModelError;
+pub use self::error::ModelError;
 pub use self::permissions::Permissions;
 
 use internal::prelude::*;
@@ -59,3 +59,5 @@ use std::{
 use utils::Colour;
 
 use serde::{Deserialize, Deserializer};
+
+pub(crate) type Result<T> = StdResult<T, ModelError>;

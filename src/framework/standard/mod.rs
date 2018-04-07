@@ -21,8 +21,7 @@ pub use self::command::{
     HelpOptions, 
     Command, 
     CommandGroup, 
-    CommandOptions, 
-    Error as CommandError
+    CommandOptions,
 };
 pub use self::command::CommandOrAlias;
 pub use self::configuration::Configuration;
@@ -46,6 +45,8 @@ use std::{
 };
 use super::Framework;
 use threadpool::ThreadPool;
+use internal::prelude::*;
+use internal::prelude::StdResult;
 
 #[cfg(feature = "cache")]
 use client::CACHE;
@@ -657,7 +658,7 @@ impl StandardFramework {
     /// ```
     pub fn on(self, name: &str,
             f: fn(&mut Context, &Message, Args)
-            -> Result<(), CommandError>) -> Self {
+            -> StdResult<(), Error>) -> Self {
         self.cmd(name, f)
     }
 
@@ -893,7 +894,7 @@ impl StandardFramework {
     ///     }));
     /// ```
     pub fn after<F>(mut self, f: F) -> Self
-        where F: Fn(&mut Context, &Message, &str, Result<(), CommandError>) + Send + Sync + 'static {
+        where F: Fn(&mut Context, &Message, &str, StdResult<(), Error>) + Send + Sync + 'static {
         self.after = Some(Arc::new(f));
 
         self

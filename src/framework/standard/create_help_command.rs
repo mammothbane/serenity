@@ -6,8 +6,7 @@ use super::command::{
 pub use super::{
     Args, 
     CommandGroup, 
-    CommandOptions, 
-    CommandError, 
+    CommandOptions,
     HelpBehaviour
 };
 

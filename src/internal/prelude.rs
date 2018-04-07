@@ -4,11 +4,11 @@
 //! These are not publicly re-exported to the end user, and must stay as a
 //! private module.
 
-pub type JsonMap = Map<String, Value>;
+pub(crate) type JsonMap = Map<String, Value>;
 
-pub use error::{Error, Result};
-pub use serde_json::{Map, Number, Value};
-pub use std::result::Result as StdResult;
+pub(crate) use failure::{Error, ResultExt};
+pub(crate) use std::result::Result as StdResult;
+pub(crate) use serde_json::{Map, Number, Value};
 
 #[cfg(feature = "client")]
-pub use client::ClientError;
+pub(crate) use client::ClientError;

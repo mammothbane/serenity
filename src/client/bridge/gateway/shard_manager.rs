@@ -1,5 +1,4 @@
 use gateway::InterMessage;
-use internal::prelude::*;
 use parking_lot::Mutex;
 use std::{
     collections::{HashMap, VecDeque},
@@ -190,7 +189,7 @@ impl ShardManager {
     /// are properly queued.
     ///
     /// [`ShardQueuer`]: struct.ShardQueuer.html
-    pub fn initialize(&mut self) -> Result<()> {
+    pub fn initialize(&mut self) {
         let shard_to = self.shard_index + self.shard_init;
 
         for shard_id in self.shard_index..shard_to {
@@ -198,8 +197,6 @@ impl ShardManager {
 
             self.boot([ShardId(shard_id), ShardId(shard_total)]);
         }
-
-        Ok(())
     }
 
     /// Sets the new sharding information for the manager.

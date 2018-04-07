@@ -63,7 +63,7 @@ impl ChannelCategory {
             let req = Permissions::MANAGE_CHANNELS;
 
             if !utils::user_has_perms(self.id, req)? {
-                return Err(Error::Model(ModelError::InvalidPermissions(req)));
+                return Err(ModelError::InvalidPermissions(req));
             }
         }
 
@@ -89,7 +89,7 @@ impl ChannelCategory {
             let req = Permissions::MANAGE_CHANNELS;
 
             if !utils::user_has_perms(self.id, req)? {
-                return Err(Error::Model(ModelError::InvalidPermissions(req)));
+                return Err(ModelError::InvalidPermissions(req));
             }
         }
 

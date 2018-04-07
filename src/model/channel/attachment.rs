@@ -1,9 +1,10 @@
+use super::Result;
+
 #[cfg(feature = "model")]
 use hyper::Client as HyperClient;
 #[cfg(feature = "model")]
-use internal::prelude::*;
-#[cfg(feature = "model")]
 use std::io::Read;
+use internal::prelude::*;
 
 /// A file uploaded with a message. Not to be confused with [`Embed`]s.
 ///
@@ -106,7 +107,7 @@ impl Attachment {
     /// [`Error::Hyper`]: ../enum.Error.html#variant.Hyper
     /// [`Error::Io`]: ../enum.Error.html#variant.Io
     /// [`Message`]: struct.Message.html
-    pub fn download(&self) -> Result<Vec<u8>> {
+    pub fn download(&self) -> StdResult<Vec<u8>, Error> {
         let hyper = request_client!();
         let mut response = hyper.get(&self.url).send()?;
 

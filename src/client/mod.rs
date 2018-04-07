@@ -28,7 +28,7 @@ mod event_handler;
 
 pub use self::{
     context::Context,
-    error::Error as ClientError,
+    error::ClientError,
     event_handler::EventHandler
 };
 
@@ -53,6 +53,8 @@ use framework::Framework;
 use model::id::UserId;
 #[cfg(feature = "voice")]
 use self::bridge::voice::ClientVoiceManager;
+
+pub(crate) type Result<T> = StdResult<T, ClientError>;
 
 /// The Client is the way to be able to start sending authenticated requests
 /// over the REST API, as well as initializing a WebSocket connection through

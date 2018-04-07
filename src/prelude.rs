@@ -14,12 +14,12 @@
 //!
 //! [`serenity::Error`]: ../enum.Error.html
 
-pub use error::Error as SerenityError;
+pub use error::SerenityError;
 pub use model::misc::Mentionable;
 pub use parking_lot::{Mutex, RwLock};
 
 #[cfg(feature = "client")]
-pub use client::{Client, ClientError as ClientError, Context, EventHandler};
+pub use client::{Client, ClientError, Context, EventHandler};
 #[cfg(feature = "gateway")]
 pub use gateway::GatewayError;
 #[cfg(feature = "http")]

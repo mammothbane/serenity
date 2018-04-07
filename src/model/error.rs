@@ -1,18 +1,10 @@
 //! Error enum definition wrapping potential model implementation errors.
 
-use std::{
-    error::Error as StdError,
-    fmt::{
-        Display, 
-        Formatter, 
-        Result as FmtResult
-    }
-};
 use super::Permissions;
+use http::HttpError;
 
 /// An error returned from the [`model`] module.
 ///
-/// This is always wrapped within the library's [`Error::Model`] variant.
 ///
 /// # Examples
 ///
@@ -28,7 +20,6 @@ use super::Permissions;
 /// # fn try_main() -> Result<(), Box<Error>> {
 /// use serenity::prelude::*;
 /// use serenity::model::prelude::*;
-/// use serenity::Error;
 /// use serenity::model::ModelError;
 /// use std::env;
 ///
@@ -41,11 +32,11 @@ use super::Permissions;
 ///             return;
 ///         }
 ///
-///      match guild_id.ban(user, &8) {
+///         match guild_id.ban(user, &8) {
 ///             Ok(()) => {
 ///                 // Ban successful.
 ///             },
-///             Err(Error::Model(ModelError::DeleteMessageDaysAmount(amount))) => {
+///             Err(ModelError::DeleteMessageDaysAmount(amount)) => {
 ///                 println!("Failed deleting {} days' worth of messages", amount);
 ///             },
 ///             Err(why) => {
@@ -71,81 +62,72 @@ use super::Permissions;
 /// ```
 ///
 /// [`Error`]: ../enum.Error.html
-/// [`Error::Model`]: ../enum.Error.html#variant.Model
 /// [`GuildId::ban`]: struct.GuildId.html#method.ban
 /// [`model`]: ./index.html
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
-pub enum Error {
-    /// When attempting to delete below or above the minimum and maximum allowed
-    /// number of messages.
+pub enum ModelError {
+    /// Attempting to delete outside the permissible range of bulk message deletions.
+    #[fail(display = "Too few/many messages to bulk delete")]
     BulkDeleteAmount,
-    /// When attempting to delete a number of days' worth of messages that is
-    /// not allowed.
+
+    /// Attempting to delete a disallowed number of days of messages.
+    #[fail(display = "Invalid delete message days")]
     DeleteMessageDaysAmount(u8),
-    /// Indicates that the textual content of an embed exceeds the maximum
-    /// length.
+
+    /// The textual content of an embed exceeds the maximum length.
+    #[fail(display = "Embed too large")]
     EmbedTooLarge(u64),
-    /// An indication that a [guild][`Guild`] could not be found by
+
+    /// A [guild][`Guild`] could not be found by the given
     /// [Id][`GuildId`] in the [`Cache`].
     ///
     /// [`Guild`]: ../model/guild/struct.Guild.html
     /// [`GuildId`]: ../model/id/struct.GuildId.html
     /// [`Cache`]: ../cache/struct.Cache.html
+    #[fail(display = "Guild not found in the cache")]
     GuildNotFound,
-    /// Indicates that there are hierarchy problems restricting an action.
+
+    /// There are hierarchy problems restricting an action.
     ///
     /// For example, when banning a user, if the other user has a role with an
     /// equal to or higher position, then they can not be banned.
     ///
     /// When editing a role, if the role is higher in position than the current
     /// user's highest role, then the role can not be edited.
+    #[fail(display = "Role hierarchy prevents this action")]
     Hierarchy,
-    /// Indicates that you do not have the required permissions to perform an
+
+    /// The current user does not have the required permissions to perform an
     /// operation.
     ///
-    /// The provided [`Permission`]s is the set of required permissions
-    /// required.
+    /// The provided [`Permission`]s is the set of permissions required.
     ///
     /// [`Permission`]: ../model/permissions/struct.Permissions.html
+    #[fail(display = "Invalid permissions")]
     InvalidPermissions(Permissions),
-    /// An indicator that the [current user] can not perform an action.
+
+    /// The [current user] could not perform an action.
     ///
     /// [current user]: ../model/user/struct.CurrentUser.html
+    #[fail(display = "The current user can not perform the action")]
     InvalidUser,
-    /// An indicator that an item is missing from the [`Cache`], and the action
-    /// can not be continued.
+
+    /// The item is missing from the [`Cache`], so the action could not continue.
     ///
     /// [`Cache`]: ../cache/struct.Cache.html
+    #[fail(display = "The required item is missing from the cache")]
     ItemMissing,
-    /// Indicates that a [`Message`]s content was too long and will not
-    /// successfully send, as the length is over 2000 codepoints, or 4000 bytes.
+
+    /// A [`Message`]s content was longer than that maximum 2000 codepoints or 4000 bytes.
     ///
-    /// The number of bytes larger than the limit is provided.
+    /// The number of bytes overflowed is included.
     ///
     /// [`Message`]: ../model/channel/struct.Message.html
+    #[fail(display = "Message too large")]
     MessageTooLong(u64),
-    /// Indicates that the current user is attempting to Direct Message another
+
+    /// The current user is attempting to Direct Message another
     /// bot user, which is disallowed by the API.
+    #[fail(display = "Attempted to message another bot user")]
     MessagingBot,
-}
-
-impl Display for Error {
-    fn fmt(&self, f: &mut Formatter) -> FmtResult { f.write_str(self.description()) }
-}
-
-impl StdError for Error {
-    fn description(&self) -> &str {
-        match *self {
-            Error::BulkDeleteAmount => "Too few/many messages to bulk delete",
-            Error::DeleteMessageDaysAmount(_) => "Invalid delete message days",
-            Error::EmbedTooLarge(_) => "Embed too large",
-            Error::GuildNotFound => "Guild not found in the cache",
-            Error::Hierarchy => "Role hierarchy prevents this action",
-            Error::InvalidPermissions(_) => "Invalid permissions",
-            Error::InvalidUser => "The current user can not perform the action",
-            Error::ItemMissing => "The required item is missing from the cache",
-            Error::MessageTooLong(_) => "Message too large",
-            Error::MessagingBot => "Attempted to message another bot user",
-        }
-    }
 }

@@ -97,6 +97,9 @@
 #![allow(unknown_lints)]
 #![allow(doc_markdown, inline_always)]
 #![warn(enum_glob_use, if_not_else)]
+#![allow(unused_import)] // TODO: REMOVE
+
+#![feature(custom_attribute)]
 
 #[macro_use]
 extern crate bitflags;
@@ -106,6 +109,8 @@ extern crate log;
 extern crate serde_derive;
 #[macro_use]
 extern crate serde_json;
+#[macro_use]
+extern crate failure;
 
 #[cfg(feature = "lazy_static")]
 #[macro_use]
@@ -166,7 +171,7 @@ pub mod voice;
 
 mod error;
 
-pub use error::{Error, Result};
+pub use error::SerenityError;
 
 #[cfg(feature = "client")]
 pub use client::Client;

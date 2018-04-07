@@ -237,7 +237,7 @@ impl Guild {
             let req = Permissions::BAN_MEMBERS;
 
             if !self.has_perms(req) {
-                return Err(Error::Model(ModelError::InvalidPermissions(req)));
+                return Err(ModelError::InvalidPermissions(req));
             }
 
             self.check_hierarchy(user)?;
@@ -264,7 +264,7 @@ impl Guild {
             let req = Permissions::BAN_MEMBERS;
 
             if !self.has_perms(req) {
-                return Err(Error::Model(ModelError::InvalidPermissions(req)));
+                return Err(ModelError::InvalidPermissions(req));
             }
         }
 
@@ -352,7 +352,7 @@ impl Guild {
             let req = Permissions::MANAGE_CHANNELS;
 
             if !self.has_perms(req) {
-                return Err(Error::Model(ModelError::InvalidPermissions(req)));
+                return Err(ModelError::InvalidPermissions(req));
             }
         }
 
@@ -423,7 +423,7 @@ impl Guild {
             let req = Permissions::MANAGE_ROLES;
 
             if !self.has_perms(req) {
-                return Err(Error::Model(ModelError::InvalidPermissions(req)));
+                return Err(ModelError::InvalidPermissions(req));
             }
         }
 
@@ -447,7 +447,7 @@ impl Guild {
             if self.owner_id != CACHE.read().user.id {
                 let req = Permissions::MANAGE_GUILD;
 
-                return Err(Error::Model(ModelError::InvalidPermissions(req)));
+                return Err(ModelError::InvalidPermissions(req));
             }
         }
 
@@ -525,7 +525,7 @@ impl Guild {
             let req = Permissions::MANAGE_GUILD;
 
             if !self.has_perms(req) {
-                return Err(Error::Model(ModelError::InvalidPermissions(req)));
+                return Err(ModelError::InvalidPermissions(req));
             }
         }
 
@@ -605,7 +605,7 @@ impl Guild {
             let req = Permissions::CHANGE_NICKNAME;
 
             if !self.has_perms(req) {
-                return Err(Error::Model(ModelError::InvalidPermissions(req)));
+                return Err(ModelError::InvalidPermissions(req));
             }
         }
 
@@ -750,7 +750,7 @@ impl Guild {
             let req = Permissions::MANAGE_GUILD;
 
             if !self.has_perms(req) {
-                return Err(Error::Model(ModelError::InvalidPermissions(req)));
+                return Err(ModelError::InvalidPermissions(req));
             }
         }
 
@@ -1338,7 +1338,7 @@ impl Guild {
             let req = Permissions::KICK_MEMBERS;
 
             if !self.has_perms(req) {
-                return Err(Error::Model(ModelError::InvalidPermissions(req)));
+                return Err(ModelError::InvalidPermissions(req));
             }
         }
 
@@ -1431,7 +1431,7 @@ impl Guild {
             let req = Permissions::KICK_MEMBERS;
 
             if !self.has_perms(req) {
-                return Err(Error::Model(ModelError::InvalidPermissions(req)));
+                return Err(ModelError::InvalidPermissions(req));
             }
         }
 
@@ -1456,7 +1456,7 @@ impl Guild {
             let req = Permissions::BAN_MEMBERS;
 
             if !self.has_perms(req) {
-                return Err(Error::Model(ModelError::InvalidPermissions(req)));
+                return Err(ModelError::InvalidPermissions(req));
             }
         }
 
