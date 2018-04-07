@@ -1,10 +1,12 @@
-use serde_json::{Error as JsonError, Value};
 use std::process::Output;
 
+use serde_json::{Error as JsonError, Value};
+use opus::Error as OpusError;
+
 /// An error returned from the voice module.
-// Errors which are not visible to the end user are hidden.
 #[derive(Debug, Fail)]
 pub enum VoiceError {
+    // Errors which are not visible to the end user are hidden.
     #[fail(display = "expected handshake")]
     #[doc(hidden)] ExpectedHandshake,
 
@@ -48,10 +50,8 @@ pub enum VoiceError {
     YouTubeDLUrl(Value),
 
     /// An error from the `opus` crate.
-    #[fail(display = "Opus error: {}", wrapped)]
-    Opus {
-        wrapped: OpusError,
-    },
+    #[fail(display = "{}", _0)]
+    Opus(#[cause] OpusError),
 }
 
 /// An error returned from the dca method.
@@ -60,10 +60,8 @@ pub enum DcaError {
     #[fail(display = "invalid DCA header")]
     InvalidHeader,
 
-    #[fail(display = "invalid metadata: {}", wrapped)]
-    InvalidMetadata {
-        wrapped: JsonError,
-    },
+    #[fail(display = "{}", _0)]
+    InvalidMetadata(#[cause] JsonError),
 
     #[fail(display = "invalid DCA size")]
     InvalidSize(i32),

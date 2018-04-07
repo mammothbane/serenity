@@ -24,34 +24,24 @@ pub enum HttpError {
     RateLimitUtf8,
 
     /// An error from the `hyper` crate.
-    #[fail(display = "Hyper error: {}", inner)]
-    Hyper {
-        inner: Box<::hyper::Error>,
-    },
+    #[fail(display = "Hyper error: {}", _0)]
+    Hyper(#[cause] ::hyper::Error),
 
-    #[fail(display = "Tls error: {}", inner)]
-    Tls {
-        inner: TlsError,
-    },
+    #[fail(display = "Tls error: {}", _0)]
+    Tls(#[cause] TlsError),
 
-    #[fail(display = "Json error: {}", inner)]
-    Json {
-        inner: JsonError,
-    }
+    #[fail(display = "Json error: {}", _0)]
+    Json(#[cause] JsonError),
 }
 
 impl From<TlsError> for HttpError {
     fn from(inner: TlsError) -> Self {
-        HttpError::Tls {
-            inner
-        }
+        HttpError::Tls(inner)
     }
 }
 
 impl From<JsonError> for HttpError {
     fn from(inner: JsonError) -> Self {
-        HttpError::Json {
-            inner
-        }
+        HttpError::Json(inner)
     }
 }

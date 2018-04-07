@@ -25,8 +25,6 @@ pub enum SerenityError {
     },
 
     /// An error from the `serde_json` crate.
-    #[fail(display = "JSON error: {}", wrapped)]
-    Json {
-        wrapped: JsonError,
-    },
+    #[fail(display = "JSON error: {}", _0)]
+    Json(#[cause] JsonError),
 }

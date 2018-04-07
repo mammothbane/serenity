@@ -15,7 +15,6 @@ use std::{
         Command, 
         Stdio
     },
-    result::Result as StdResult
 };
 use super::{
     AudioSource, 
@@ -133,26 +132,26 @@ pub fn ffmpeg<P: AsRef<OsStr>>(path: P) -> Result<Box<AudioSource>> {
 /// Creates a streamed audio source from a DCA file.
 /// Currently only accepts the DCA1 format.
 pub fn dca<P: AsRef<OsStr>>(path: P) -> Result<Box<AudioSource>> {
-    let file = File::open(path.as_ref()).map_err(DcaError::IoError)?;
+    let file = File::open(path.as_ref())?;
 
     let mut reader = BufReader::new(file);
 
     let mut header = [0u8; 4];
 
     // Read in the magic number to verify it's a DCA file.
-    reader.read_exact(&mut header).map_err(DcaError::IoError)?;
+    reader.read_exact(&mut header)?;
 
     if header != b"DCA1"[..] {
-        return Err(DcaError::InvalidHeader);
+        return Err(DcaError::InvalidHeader.into());
     }
 
-    reader.read_exact(&mut header).map_err(DcaError::IoError)?;
+    reader.read_exact(&mut header)?;
 
     let size = (&header[..]).read_i32::<LittleEndian>().unwrap();
 
     // Sanity check
     if size < 2 {
-        return Err(DcaError::InvalidSize(size));
+        return Err(DcaError::InvalidSize(size).into());
     }
 
     let mut raw_json = Vec::with_capacity(size as usize);
@@ -161,8 +160,7 @@ pub fn dca<P: AsRef<OsStr>>(path: P) -> Result<Box<AudioSource>> {
         let json_reader = reader.by_ref();
         json_reader
             .take(size as u64)
-            .read_to_end(&mut raw_json)
-            .map_err(DcaError::IoError)?;
+            .read_to_end(&mut raw_json)?;
     }
 
     let metadata = serde_json::from_slice::<DcaMetadata>(raw_json.as_slice())
@@ -211,21 +209,21 @@ pub fn ytdl(uri: &str) -> Result<Box<AudioSource>> {
         .output()?;
 
     if !out.status.success() {
-        return Err(Error::Voice(VoiceError::YouTubeDLRun(out)));
+        return Err(VoiceError::YouTubeDLRun(out).into());
     }
 
     let value = serde_json::from_reader(&out.stdout[..])?;
     let mut obj = match value {
         Value::Object(obj) => obj,
-        other => return Err(Error::Voice(VoiceError::YouTubeDLProcessing(other))),
+        other => return Err(VoiceError::YouTubeDLProcessing(other).into()),
     };
 
     let uri = match obj.remove("url") {
         Some(v) => match v {
             Value::String(uri) => uri,
-            other => return Err(Error::Voice(VoiceError::YouTubeDLUrl(other))),
+            other => return Err(VoiceError::YouTubeDLUrl(other).into()),
         },
-        None => return Err(Error::Voice(VoiceError::YouTubeDLUrl(Value::Object(obj)))),
+        None => return Err(VoiceError::YouTubeDLUrl(Value::Object(obj)).into()),
     };
 
     ffmpeg(&uri)
@@ -246,7 +244,7 @@ fn is_stereo(path: &OsStr) -> Result<bool> {
         .as_object()
         .and_then(|m| m.get("streams"))
         .and_then(|v| v.as_array())
-        .ok_or(Error::Voice(VoiceError::Streams))?;
+        .ok_or(VoiceError::Streams)?;
 
     let check = streams.iter().any(|stream| {
         let channels = stream

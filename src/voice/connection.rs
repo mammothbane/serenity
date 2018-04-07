@@ -1,8 +1,8 @@
 use byteorder::{
     BigEndian, 
-    ByteOrder, 
-    LittleEndian, 
-    ReadBytesExt, 
+    ByteOrder,
+    LittleEndian,
+    ReadBytesExt,
     WriteBytesExt
 };
 use constants::VOICE_GATEWAY_VERSION;
@@ -119,19 +119,19 @@ impl Connection {
                 other => {
                     debug!("[Voice] Expected hello/heartbeat; got: {:?}", other);
 
-                    return Err(Error::Voice(VoiceError::ExpectedHandshake));
+                    return Err(VoiceError::ExpectedHandshake.into());
                 },
             }
         };
 
         if !has_valid_mode(&hello.modes) {
-            return Err(Error::Voice(VoiceError::VoiceModeUnavailable));
+            return Err(VoiceError::VoiceModeUnavailable.into());
         }
 
         let destination = (&info.endpoint[..], hello.port)
             .to_socket_addrs()?
             .next()
-            .ok_or(Error::Voice(VoiceError::HostnameResolve))?;
+            .ok_or::<Error>(VoiceError::HostnameResolve.into())?;
 
         // Important to note here: the length of the packet can be of either 4
         // or 70 bytes. If it is 4 bytes, then we need to send a 70-byte packet
@@ -158,7 +158,7 @@ impl Connection {
                 .iter()
                 .skip(4)
                 .position(|&x| x == 0)
-                .ok_or(Error::Voice(VoiceError::FindingByte))?;
+                .ok_or::<Error>(VoiceError::FindingByte.into())?;
 
             let pos = 4 + index;
             let addr = String::from_utf8_lossy(&bytes[4..pos]);
@@ -506,7 +506,7 @@ fn generate_url(endpoint: &mut String) -> Result<WebsocketUrl> {
     }
 
     WebsocketUrl::parse(&format!("wss://{}/?v={}", endpoint, VOICE_GATEWAY_VERSION))
-        .or(Err(Error::Voice(VoiceError::EndpointUrl)))
+        .or(Err(VoiceError::EndpointUrl.into()))
 }
 
 #[inline]
@@ -520,11 +520,11 @@ fn encryption_key(client: &mut Client) -> Result<Key> {
         match VoiceEvent::deserialize(value)? {
             VoiceEvent::Ready(ready) => {
                 if ready.mode != CRYPTO_MODE {
-                    return Err(Error::Voice(VoiceError::VoiceModeInvalid));
+                    return Err(VoiceError::VoiceModeInvalid.into());
                 }
 
                 return Key::from_slice(&ready.secret_key)
-                    .ok_or(Error::Voice(VoiceError::KeyGen));
+                    .ok_or(VoiceError::KeyGen.into());
             },
             VoiceEvent::Unknown(op, value) => {
                 debug!(
