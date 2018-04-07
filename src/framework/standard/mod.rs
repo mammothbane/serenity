@@ -96,7 +96,7 @@ macro_rules! command {
             fn execute(&self, mut $c: &mut $crate::client::Context,
                       _: &$crate::model::channel::Message,
                       _: $crate::framework::standard::Args)
-                      -> ::std::result::Result<(), $crate::framework::standard::CommandError> {
+                      -> ::std::result::Result<(), $crate::failure::Error> {
 
                 $b
 
@@ -113,7 +113,7 @@ macro_rules! command {
             fn execute(&self, mut $c: &mut $crate::client::Context,
                       $m: &$crate::model::channel::Message,
                       _: $crate::framework::standard::Args)
-                      -> ::std::result::Result<(), $crate::framework::standard::CommandError> {
+                      -> ::std::result::Result<(), $crate::failure::Error> {
 
                 $b
 
@@ -130,7 +130,7 @@ macro_rules! command {
             fn execute(&self, mut $c: &mut $crate::client::Context,
                       $m: &$crate::model::channel::Message,
                       mut $a: $crate::framework::standard::Args)
-                      -> ::std::result::Result<(), $crate::framework::standard::CommandError> {
+                      -> ::std::result::Result<(), $crate::failure::Error> {
 
                 $b
 
@@ -142,66 +142,69 @@ macro_rules! command {
 
 /// An enum representing all possible fail conditions under which a command won't
 /// be executed.
+#[derive(Debug, Fail, Clone)]
 pub enum DispatchError {
     /// When a custom function check has failed.
     //
     // TODO: Bring back `Arc<Command>` as `CommandOptions` here somehow?
+    #[fail(display = "custom function check failed")]
     CheckFailed,
+
     /// When the requested command is disabled in bot configuration.
+    #[fail(display = "command is disabled")]
     CommandDisabled(String),
+
     /// When the user is blocked in bot configuration.
+    #[fail(display = "user is blocked")]
     BlockedUser,
+
     /// When the guild or its owner is blocked in bot configuration.
+    #[fail(display = "guild is blocked")]
     BlockedGuild,
+
     /// When the command requester lacks specific required permissions.
+    #[fail(display = "additional permissions required: {:?}", _0)]
     LackOfPermissions(Permissions),
+
     /// When the command requester has exceeded a ratelimit bucket. The attached
     /// value is the time a requester has to wait to run the command again.
+    #[fail(display = "rate-limited")]
     RateLimited(i64),
+
     /// When the requested command can only be used in a direct message or group
     /// channel.
+    #[fail(display = "command can only be used in DMs")]
     OnlyForDM,
+
     /// When the requested command can only be ran in guilds, or the bot doesn't
     /// support DMs.
+    #[fail(display = "command can only be used in guild channels")]
     OnlyForGuilds,
+
     /// When the requested command can only be used by bot owners.
+    #[fail(display = "command can only be used by bot owners")]
     OnlyForOwners,
+
     /// When the requested command requires one role.
+    #[fail(display = "command requires one role")]
     LackingRole,
+
     /// When there are too few arguments.
+    #[fail(display = "command required more arguments (provided: {}, minimum: {})", given, min)]
     NotEnoughArguments { min: i32, given: usize },
+
     /// When there are too many arguments.
+    #[fail(display = "command received too many arguments (provided: {}, maximum: {})", given, max)]
     TooManyArguments { max: i32, given: usize },
+
     /// When the command was requested by a bot user when they are set to be
     /// ignored.
+    #[fail(display = "user is ignored")]
     IgnoredBot,
+
     /// When the bot ignores webhooks and a command was issued by one.
+    #[fail(display = "webhooks are ignored")]
     WebhookAuthor,
-}
-
-use std::fmt;
-
-impl fmt::Debug for DispatchError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        use self::DispatchError::*;
-
-        match *self {
-            CheckFailed => write!(f, "DispatchError::CheckFailed"),
-            CommandDisabled(ref s) => f.debug_tuple("DispatchError::CommandDisabled").field(&s).finish(),
-            BlockedUser => write!(f, "DispatchError::BlockedUser"),
-            BlockedGuild => write!(f, "DispatchError::BlockedGuild"),
-            LackOfPermissions(ref perms) => f.debug_tuple("DispatchError::LackOfPermissions").field(&perms).finish(),
-            RateLimited(ref num) => f.debug_tuple("DispatchError::RateLimited").field(&num).finish(),
-            OnlyForDM => write!(f, "DispatchError::OnlyForDM"),
-            OnlyForOwners => write!(f, "DispatchError::OnlyForOwners"),
-            OnlyForGuilds => write!(f, "DispatchError::OnlyForGuilds"),
-            LackingRole => write!(f, "DispatchError::LackingRole"),
-            NotEnoughArguments { ref min, ref given } => f.debug_struct("DispatchError::NotEnoughArguments").field("min", &min).field("given", &given).finish(),
-            TooManyArguments { ref max, ref given } => f.debug_struct("DispatchError::TooManyArguments").field("max", &max).field("given", &given).finish(),
-            IgnoredBot => write!(f, "DispatchError::IgnoredBot"),
-            WebhookAuthor => write!(f, "DispatchError::WebhookAuthor"),
-        }
-    }
 }
 
 type DispatchErrorHook = Fn(Context, Message, DispatchError) + Send + Sync + 'static;
@@ -1151,6 +1154,7 @@ pub enum HelpBehaviour {
     Nothing
 }
 
+use std::fmt;
 impl fmt::Display for HelpBehaviour {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
        match *self {
