@@ -2,7 +2,7 @@ use client::Context;
 use http;
 use model::{
     channel::Message,
-    id::{GuildId, UserId}
+    id::{ChannelId, GuildId, UserId}
 };
 use std::{
     collections::HashSet,
@@ -44,6 +44,7 @@ pub struct Configuration {
     #[doc(hidden)] pub allow_whitespace: bool,
     #[doc(hidden)] pub blocked_guilds: HashSet<GuildId>,
     #[doc(hidden)] pub blocked_users: HashSet<UserId>,
+    #[doc(hidden)] pub allowed_channels: HashSet<ChannelId>,
     #[doc(hidden)] pub depth: usize,
     #[doc(hidden)] pub disabled_commands: HashSet<String>,
     #[doc(hidden)] pub dynamic_prefix: Option<Box<PrefixCheck>>,
@@ -52,6 +53,7 @@ pub struct Configuration {
     #[doc(hidden)] pub on_mention: Option<Vec<String>>,
     #[doc(hidden)] pub owners: HashSet<UserId>,
     #[doc(hidden)] pub prefixes: Vec<String>,
+    #[doc(hidden)] pub no_dm_prefix: bool,
     #[doc(hidden)] pub delimiters: Vec<String>,
     #[doc(hidden)] pub case_insensitive: bool,
 }
@@ -114,6 +116,30 @@ impl Configuration {
     /// ```
     pub fn blocked_guilds(mut self, guilds: HashSet<GuildId>) -> Self {
         self.blocked_guilds = guilds;
+
+        self
+    }
+
+    /// HashSet of channels Ids where commands will be working.
+    ///
+    /// # Examples
+    ///
+    /// Create a HashSet in-place:
+    ///
+    /// ```rust,no_run
+    /// # use serenity::prelude::*;
+    /// # struct Handler;
+    /// #
+    /// # impl EventHandler for Handler {}
+    /// # let mut client = Client::new("token", Handler).unwrap();
+    /// use serenity::model::id::ChannelId;
+    /// use serenity::framework::StandardFramework;
+    ///
+    /// client.with_framework(StandardFramework::new().configure(|c| c
+    ///     .allowed_channels(vec![ChannelId(7), ChannelId(77)].into_iter().collect())));
+    /// ```
+    pub fn allowed_channels(mut self, channels: HashSet<ChannelId>) -> Self {
+        self.allowed_channels = channels;
 
         self
     }
@@ -373,6 +399,16 @@ impl Configuration {
         self
     }
 
+    /// Sets whether command execution can done without a prefix. Works only in private channels.
+    ///
+    /// # Note
+    /// Needs the `cache` feature to be enabled. Otherwise this does nothing.
+    pub fn no_dm_prefix(mut self, b: bool) -> Self {
+        self.no_dm_prefix = b;
+
+        self
+    }
+
     /// Sets a delimiter to be used when splitting the content after a command.
     ///
     /// # Examples
@@ -441,6 +477,7 @@ impl Default for Configuration {
     /// - **depth** to `5`
     /// - **on_mention** to `false` (basically)
     /// - **prefix** to `None`
+    /// - **no_dm_prefix** to `false`
     /// - **delimiters** to vec![" "]
     /// - **case_insensitive** to `false`
     fn default() -> Configuration {
@@ -450,10 +487,12 @@ impl Default for Configuration {
             dynamic_prefix: None,
             allow_whitespace: false,
             prefixes: vec![],
+            no_dm_prefix: false,
             ignore_bots: true,
             owners: HashSet::default(),
             blocked_users: HashSet::default(),
             blocked_guilds: HashSet::default(),
+            allowed_channels: HashSet::default(),
             disabled_commands: HashSet::default(),
             allow_dm: true,
             ignore_webhooks: true,

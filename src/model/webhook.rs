@@ -2,8 +2,8 @@
 
 use super::{
     id::{
-        ChannelId, 
-        GuildId, 
+        ChannelId,
+        GuildId,
         WebhookId
     },
     user::User
@@ -223,5 +223,5 @@ impl WebhookId {
     ///
     /// [Manage Webhooks]: permissions/constant.MANAGE_WEBHOOKS.html
     #[inline]
-    pub fn get(&self) -> Result<Webhook> { http::get_webhook(self.0) }
+    pub fn get(self) -> Result<Webhook> { http::get_webhook(self.0) }
 }

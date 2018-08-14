@@ -2,7 +2,9 @@ pub use super::{
     Args, 
     Command, 
     CommandGroup, 
-    CommandOptions,
+    CommandOptions, 
+    CommandError,
+    Check,
 };
 
 use client::Context;
@@ -59,7 +61,7 @@ impl CreateCommand {
     /// Adds a "check" to a command, which checks whether or not the command's
     /// function should be called.
     ///
-    /// These checks are bypassed for commands sent by the application owner.
+    /// **Note**: These checks are bypassed for commands sent by the application owner.
     ///
     /// # Examples
     ///
@@ -108,7 +110,7 @@ impl CreateCommand {
                      + Send
                      + Sync
                      + 'static {
-        self.0.checks.push(Box::new(check));
+        self.0.checks.push(Check::new(check));
 
         self
     }

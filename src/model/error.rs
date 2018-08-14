@@ -4,7 +4,6 @@ use super::Permissions;
 
 /// An error returned from the [`model`] module.
 ///
-///
 /// # Examples
 ///
 /// Matching an [`Error`] with this variant would look something like the

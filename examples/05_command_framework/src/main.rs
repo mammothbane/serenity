@@ -5,7 +5,7 @@
 //!
 //! ```toml
 //! [dependencies.serenity]
-//! git = "https://github.com/zeyla/serenity.git"
+//! git = "https://github.com/serenity-rs/serenity.git"
 //! features = ["framework", "standard_framework"]
 //! ```
 
@@ -148,9 +148,7 @@ fn main() {
                 If you want more information about a specific command, just pass the command as argument.")
                 // Some arguments require a `{}` in order to replace it with contextual information.
                 // In this case our `{}` refers to a command's name.
-                .command_not_found_text("Could not {}, I'm sorry : (")
-                // Another argument requiring `{}`, again replaced with the command's name.
-                .suggestion_text("How about this command: {}, it's numero uno on the market...!")
+                .command_not_found_text("Could not find: `{}`.")
                 // On another note, you can set up the help-menu-filter-behaviour.
                 // Here are all possible settings shown on all possible options.
                 // First case is if a user lacks permissions for a command, we can hide the command.
@@ -160,7 +158,7 @@ fn main() {
                 // The last `enum`-variant is `Strike`, which ~~strikes~~ a command.
                 .wrong_channel(HelpBehaviour::Strike)
                 // Serenity will automatically analyse and generate a hint/tip explaining the possible
-                // cases of a command being ~~striked~~, but only  if
+                // cases of ~~strikethrough-commands~~, but only if
                 // `striked_commands_tip(Some(""))` keeps `Some()` wrapping an empty `String`, which is the default value.
                 // If the `String` is not empty, your given `String` will be used instead.
                 // If you pass in a `None`, no hint will be displayed at all.
@@ -170,7 +168,10 @@ fn main() {
             .bucket("complicated")
             .cmd(commands))
         .group("Emoji", |g| g
+            // Sets a single prefix for a group:
             .prefix("emoji")
+            // Sets a command that will be executed if only a group-prefix was passed.
+            .default_cmd(dog)
             .command("cat", |c| c
                 .desc("Sends an emoji with a cat.")
                 .batch_known_as(vec!["kitty", "neko"]) // Adds multiple aliases
@@ -182,19 +183,32 @@ fn main() {
                 .desc("Sends an emoji with a dog.")
                 .bucket("emoji")
                 .cmd(dog)))
-        .command("multiply", |c| c
-            .known_as("*") // Lets us call ~* instead of ~multiply
-            .cmd(multiply))
+        .group("Math", |g| g
+            // Sets multiple prefixes for a group.
+            // This requires us to call commands in this group
+            // via `~math` (or `~m`) instead of just `~`.
+            .prefixes(vec!["m", "math"])
+            .command("multiply", |c| c
+                .known_as("*") // Lets us also call `~math *` instead of just `~math multiply`.
+                .cmd(multiply)))
         .command("latency", |c| c
             .cmd(latency))
         .command("ping", |c| c
-            .check(owner_check)
+            .check(owner_check) // User needs to pass this test to run command
             .cmd(ping))
         .command("role", |c| c
             .cmd(about_role)
             // Limits the usage of this command to roles named:
             .allowed_roles(vec!["mods", "ultimate neko"]))
-        .command("some long command", |c| c.cmd(some_long_command)),
+        .command("some long command", |c| c.cmd(some_long_command))
+        .group("Owner", |g| g
+            // This check applies to every command on this group.
+            // User needs to pass the test for the command to execute.
+            .check(admin_check) 
+            .command("am i admin", |c| c
+                .cmd(am_i_admin))
+                .guild_only(true)
+        ),
     );
 
     if let Err(why) = client.start() {
@@ -231,6 +245,21 @@ command!(commands(ctx, msg, _args) {
 fn owner_check(_: &mut Context, msg: &Message, _: &mut Args, _: &CommandOptions) -> bool {
     // Replace 7 with your ID
     msg.author.id == 7
+}
+
+// A function which acts as a "check", to determine whether to call a command.
+//
+// This check analyses whether a guild member permissions has 
+// administrator-permissions.
+fn admin_check(_: &mut Context, msg: &Message, _: &mut Args, _: &CommandOptions) -> bool {
+    if let Some(member) = msg.member() {
+
+        if let Ok(permissions) = member.permissions() {
+            return permissions.administrator();
+        }
+    }
+
+    false
 }
 
 command!(some_long_command(_ctx, msg, args) {
@@ -331,6 +360,12 @@ command!(latency(ctx, msg, _args) {
 
 command!(ping(_ctx, msg, _args) {
     if let Err(why) = msg.channel_id.say("Pong! : )") {
+        println!("Error sending message: {:?}", why);
+    }
+});
+
+command!(am_i_admin(_ctx, msg, _args) {
+    if let Err(why) = msg.channel_id.say("Yes you are.") {
         println!("Error sending message: {:?}", why);
     }
 });

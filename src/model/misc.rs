@@ -28,11 +28,23 @@ impl Mentionable for ChannelId {
 impl Mentionable for Channel {
     fn mention(&self) -> String {
         match *self {
-            Channel::Guild(ref x) => format!("<#{}>", x.with(|x| x.id.0)),
-            Channel::Private(ref x) => format!("<#{}>", x.with(|x| x.id.0)),
-            Channel::Group(ref x) => format!("<#{}>", x.with(|x| x.channel_id.0)),
-            Channel::Category(_) => panic!("Categories can't be mentioned"),
+            Channel::Guild(ref x) => x.with(Mentionable::mention),
+            Channel::Private(ref x) => x.with(Mentionable::mention),
+            Channel::Group(ref x) => x.with(Mentionable::mention),
+            Channel::Category(ref x) => x.with(Mentionable::mention),
         }
+    }
+}
+
+impl Mentionable for ChannelCategory {
+    fn mention(&self) -> String {
+        format!("<#{}>", self.name)
+    }
+}
+
+impl Mentionable for CurrentUser {
+    fn mention(&self) -> String {
+        format!("<@{}>", self.id.0)
     }
 }
 
@@ -40,8 +52,20 @@ impl Mentionable for Emoji {
     fn mention(&self) -> String { format!("<:{}:{}>", self.name, self.id.0) }
 }
 
+impl Mentionable for Group {
+    fn mention(&self) -> String {
+        format!("<#{}>", self.channel_id.0)
+    }
+}
+
 impl Mentionable for Member {
     fn mention(&self) -> String { format!("<@{}>", self.user.with(|u| u.id.0)) }
+}
+
+impl Mentionable for PrivateChannel {
+    fn mention(&self) -> String {
+        format!("<#{}>", self.id.0)
+    }
 }
 
 impl Mentionable for RoleId {
@@ -58,6 +82,10 @@ impl Mentionable for UserId {
 
 impl Mentionable for User {
     fn mention(&self) -> String { format!("<@{}>", self.id.0) }
+}
+
+impl Mentionable for GuildChannel {
+    fn mention(&self) -> String { format!("<#{}>", self.id.0) }
 }
 
 #[cfg(all(feature = "model", feature = "utils"))]

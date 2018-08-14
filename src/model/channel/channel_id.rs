@@ -7,9 +7,9 @@ use std::borrow::Cow;
 use std::fmt::Write as FmtWrite;
 #[cfg(feature = "model")]
 use builder::{
-    CreateMessage, 
-    EditChannel, 
-    EditMessage, 
+    CreateMessage,
+    EditChannel,
+    EditMessage,
     GetMessages
 };
 #[cfg(all(feature = "cache", feature = "model"))]
@@ -88,7 +88,15 @@ impl ChannelId {
     #[inline]
     pub fn create_reaction<M, R>(&self, message_id: M, reaction_type: R) -> Result<()>
         where M: Into<MessageId>, R: Into<ReactionType> {
-        http::create_reaction(self.0, message_id.into().0, &reaction_type.into())
+        self._create_reaction(message_id.into(), &reaction_type.into())
+    }
+
+    fn _create_reaction(
+        self,
+        message_id: MessageId,
+        reaction_type: &ReactionType,
+    ) -> Result<()> {
+        http::create_reaction(self.0, message_id.0, reaction_type)
     }
 
     /// Deletes this channel, returning the channel on a successful deletion.
@@ -107,22 +115,11 @@ impl ChannelId {
     /// [Manage Messages]: permissions/constant.MANAGE_MESSAGES.html
     #[inline]
     pub fn delete_message<M: Into<MessageId>>(&self, message_id: M) -> Result<()> {
-        http::delete_message(self.0, message_id.into().0)
+        self._delete_message(message_id.into())
     }
 
-    /// Deletes all permission overrides in the channel from a member or role.
-    ///
-    /// **Note**: Requires the [Manage Channel] permission.
-    ///
-    /// [Manage Channel]: permissions/constant.MANAGE_CHANNELS.html
-    pub fn delete_permission(&self, permission_type: PermissionOverwriteType) -> Result<()> {
-        http::delete_permission(
-            self.0,
-            match permission_type {
-                PermissionOverwriteType::Member(id) => id.0,
-                PermissionOverwriteType::Role(id) => id.0,
-            },
-        )
+    fn _delete_message(self, message_id: MessageId) -> Result<()> {
+        http::delete_message(self.0, message_id.0)
     }
 
     /// Deletes all messages by Ids from the given vector in the given channel.
@@ -148,10 +145,15 @@ impl ChannelId {
             .into_iter()
             .map(|message_id| message_id.as_ref().0)
             .collect::<Vec<u64>>();
+
+        self._delete_messages(&ids)
+    }
+
+    fn _delete_messages(self, ids: &[u64]) -> Result<()> {
         let len = ids.len();
 
         if len == 0 || len > 100 {
-            return Err(ModelError::BulkDeleteAmount.into());
+            Err(ModelError::BulkDeleteAmount.into())
         } else if ids.len() == 1 {
             self.delete_message(ids[0])?;
         } else {
@@ -163,6 +165,21 @@ impl ChannelId {
         Ok(())
     }
 
+    /// Deletes all permission overrides in the channel from a member or role.
+    ///
+    /// **Note**: Requires the [Manage Channel] permission.
+    ///
+    /// [Manage Channel]: permissions/constant.MANAGE_CHANNELS.html
+    pub fn delete_permission(&self, permission_type: PermissionOverwriteType) -> Result<()> {
+        http::delete_permission(
+            self.0,
+            match permission_type {
+                PermissionOverwriteType::Member(id) => id.0,
+                PermissionOverwriteType::Role(id) => id.0,
+            },
+        )
+    }
+
     /// Deletes the given [`Reaction`] from the channel.
     ///
     /// **Note**: Requires the [Manage Messages] permission, _if_ the current
@@ -170,17 +187,31 @@ impl ChannelId {
     ///
     /// [`Reaction`]: struct.Reaction.html
     /// [Manage Messages]: permissions/constant.MANAGE_MESSAGES.html
+    #[inline]
     pub fn delete_reaction<M, R>(&self,
                                  message_id: M,
                                  user_id: Option<UserId>,
                                  reaction_type: R)
                                  -> Result<()>
         where M: Into<MessageId>, R: Into<ReactionType> {
+        self._delete_reaction(
+            message_id.into(),
+            user_id,
+            &reaction_type.into(),
+        )
+    }
+
+    fn _delete_reaction(
+        self,
+        message_id: MessageId,
+        user_id: Option<UserId>,
+        reaction_type: &ReactionType,
+    ) -> Result<()> {
         http::delete_reaction(
             self.0,
-            message_id.into().0,
+            message_id.0,
             user_id.map(|uid| uid.0),
-            &reaction_type.into(),
+            reaction_type,
         )
     }
 
@@ -231,8 +262,14 @@ impl ChannelId {
     /// [`Message`]: struct.Message.html
     /// [`the limit`]: ../builder/struct.EditMessage.html#method.content
     #[cfg(feature = "utils")]
+    #[inline]
     pub fn edit_message<F, M>(&self, message_id: M, f: F) -> Result<Message>
         where F: FnOnce(EditMessage) -> EditMessage, M: Into<MessageId> {
+        self._edit_message(message_id.into(), f)
+    }
+
+    fn _edit_message<F>(self, message_id: MessageId, f: F) -> Result<Message>
+        where F: FnOnce(EditMessage) -> EditMessage {
         let msg = f(EditMessage::default());
 
         if let Some(content) = msg.0.get(&"content") {
@@ -245,7 +282,7 @@ impl ChannelId {
 
         let map = utils::vecmap_to_json_map(msg.0);
 
-        http::edit_message(self.0, message_id.into().0, &Value::Object(map))
+        http::edit_message(self.0, message_id.0, &Value::Object(map))
             .map_err(|e| e.into())
     }
 
@@ -280,12 +317,15 @@ impl ChannelId {
     /// [Read Message History]: permissions/constant.READ_MESSAGE_HISTORY.html
     #[inline]
     pub fn message<M: Into<MessageId>>(&self, message_id: M) -> Result<Message> {
-        http::get_message(self.0, message_id.into().0)
-            .map(|mut msg| {
-                msg.transform_content();
+        self._message(message_id.into())
+    }
 
-                msg
-            })
+    fn _message(self, message_id: MessageId) -> Result<Message> {
+        http::get_message(self.0, message_id.0).map(|mut msg| {
+            msg.transform_content();
+
+            msg
+        })
     }
 
     /// Gets messages from the channel.
@@ -353,7 +393,11 @@ impl ChannelId {
     /// [`Message`]: struct.Message.html
     #[inline]
     pub fn pin<M: Into<MessageId>>(&self, message_id: M) -> Result<()> {
-        http::pin_message(self.0, message_id.into().0)
+        self._pin(message_id.into())
+    }
+
+    fn _pin(self, message_id: MessageId) -> Result<()> {
+        http::pin_message(self.0, message_id.0)
     }
 
     /// Gets the list of [`Message`]s which are pinned to the channel.
@@ -382,14 +426,29 @@ impl ChannelId {
     ) -> Result<Vec<User>> where M: Into<MessageId>,
                                  R: Into<ReactionType>,
                                  U: Into<Option<UserId>> {
+        self._reaction_users(
+            message_id.into(),
+            &reaction_type.into(),
+            limit,
+            after.into(),
+        )
+    }
+
+    fn _reaction_users(
+        self,
+        message_id: MessageId,
+        reaction_type: &ReactionType,
+        limit: Option<u8>,
+        after: Option<UserId>,
+    ) -> Result<Vec<User>> {
         let limit = limit.map_or(50, |x| if x > 100 { 100 } else { x });
 
         http::get_reaction_users(
             self.0,
-            message_id.into().0,
-            &reaction_type.into(),
+            message_id.0,
+            reaction_type,
             limit,
-            after.into().map(|x| x.0),
+            after.map(|x| x.0),
         )
     }
 
@@ -501,9 +560,9 @@ impl ChannelId {
     /// over the limit.
     ///
     /// [`Channel`]: enum.Channel.html
-    /// [`ModelError::MessageTooLong`]: enum.ModelError.html#variant.MessageTooLong
-    /// [`CreateMessage`]: ../builder/struct.CreateMessage.html
-    /// [Send Messages]: permissions/constant.SEND_MESSAGES.html
+    /// [`ModelError::MessageTooLong`]: ../error/enum.Error.html#variant.MessageTooLong
+    /// [`CreateMessage`]: ../../builder/struct.CreateMessage.html
+    /// [Send Messages]: ../permissions/struct.Permissions.html#associatedconstant.SEND_MESSAGES
     #[cfg(feature = "utils")]
     pub fn send_message<F>(&self, f: F) -> Result<Message>
         where F: FnOnce(CreateMessage) -> CreateMessage {
@@ -532,7 +591,11 @@ impl ChannelId {
     /// [Manage Messages]: permissions/constant.MANAGE_MESSAGES.html
     #[inline]
     pub fn unpin<M: Into<MessageId>>(&self, message_id: M) -> Result<()> {
-        http::unpin_message(self.0, message_id.into().0)
+        self._unpin(message_id.into())
+    }
+
+    fn _unpin(self, message_id: MessageId) -> Result<()> {
+        http::unpin_message(self.0, message_id.0)
     }
 
     /// Retrieves the channel's webhooks.

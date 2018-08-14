@@ -12,15 +12,16 @@ mod args;
 pub use self::args::{
     Args,
     Iter,
-    ArgError as ArgError
+    ArgError,
 };
 pub(crate) use self::buckets::{Bucket, Ratelimit};
 pub(crate) use self::command::Help;
 pub use self::command::{
-    HelpFunction, 
-    HelpOptions, 
-    Command, 
-    CommandGroup, 
+    Check,
+    HelpFunction,
+    HelpOptions,
+    Command,
+    CommandGroup,
     CommandOptions,
 };
 pub use self::command::CommandOrAlias;
@@ -167,6 +168,10 @@ pub enum DispatchError {
     /// When the guild or its owner is blocked in bot configuration.
     #[fail(display = "guild is blocked")]
     BlockedGuild,
+
+    /// When the channel blocked in bot configuration.
+    #[fail(display = "channel is blocked in bot configuration")]
+    BlockedChannel,
 
     /// When the command requester lacks specific required permissions.
     #[fail(display = "additional permissions required: {:?}", _0)]
@@ -498,12 +503,21 @@ impl StandardFramework {
         false
     }
 
+    #[cfg(feature = "cache")]
+    fn is_blocked_channel(&self, message: &Message) -> bool {
+        !self.configuration.allowed_channels.is_empty()
+            && !self.configuration
+                .allowed_channels
+                .contains(&message.channel_id)
+    }
+
     #[allow(too_many_arguments)]
     #[cfg_attr(feature = "cargo-clippy", allow(cyclomatic_complexity))]
     fn should_fail(&mut self,
                    mut context: &mut Context,
                    message: &Message,
                    command: &Arc<CommandOptions>,
+                   group: &Arc<CommandGroup>,
                    args: &mut Args,
                    to_check: &str,
                    built: &str)
@@ -512,32 +526,7 @@ impl StandardFramework {
             Some(DispatchError::IgnoredBot)
         } else if self.configuration.ignore_webhooks && message.webhook_id.is_some() {
             Some(DispatchError::WebhookAuthor)
-        } else if self.configuration.owners.contains(&message.author.id) {
-            None
         } else {
-            if let Some(ref bucket) = command.bucket {
-                if let Some(ref mut bucket) = self.buckets.get_mut(bucket) {
-                    let rate_limit = bucket.take(message.author.id.0);
-                    match bucket.check {
-                        Some(ref check) => {
-                            let apply = feature_cache! {{
-                                let guild_id = message.guild_id();
-                                (check)(context, guild_id, message.channel_id, message.author.id)
-                            } else {
-                                (check)(context, message.channel_id, message.author.id)
-                            }};
-
-                            if apply && rate_limit > 0i64 {
-                                return Some(DispatchError::RateLimited(rate_limit));
-                            }
-                        },
-                        None => if rate_limit > 0i64 {
-                            return Some(DispatchError::RateLimited(rate_limit));
-                        },
-                    }
-                }
-            }
-
             let len = args.len();
 
             if let Some(x) = command.min_args {
@@ -558,10 +547,39 @@ impl StandardFramework {
                 }
             }
 
+            if self.configuration.owners.contains(&message.author.id) {
+                return None;
+            }
+
+            if let Some(ref bucket) = command.bucket {
+                if let Some(ref mut bucket) = self.buckets.get_mut(bucket) {
+                    let rate_limit = bucket.take(message.author.id.0);
+
+                    // Is there a custom check for when this bucket applies?
+                    // If not, assert that it does always.
+                    let apply = bucket.check.as_ref().map_or(true, |check| {
+                        feature_cache! {{
+                            let guild_id = message.guild_id;
+                            (check)(context, guild_id, message.channel_id, message.author.id)
+                        } else {
+                            (check)(context, message.channel_id, message.author.id)
+                        }}
+                    });
+
+                    if apply && rate_limit > 0i64 {
+                        return Some(DispatchError::RateLimited(rate_limit));
+                    }
+                }
+            }
+
             #[cfg(feature = "cache")]
             {
                 if self.is_blocked_guild(message) {
                     return Some(DispatchError::BlockedGuild);
+                }
+
+                if self.is_blocked_channel(message) {
+                    return Some(DispatchError::BlockedChannel);
                 }
 
                 if !has_correct_permissions(command, message) {
@@ -610,12 +628,21 @@ impl StandardFramework {
                     }
                 }
 
-                let all_passed = command
+                let all_group_checks_passed = group
                     .checks
                     .iter()
-                    .all(|check| check(&mut context, message, args, command));
+                    .all(|check| (check.0)(&mut context, message, args, command));
 
-                if all_passed {
+                if !all_group_checks_passed {
+                    return Some(DispatchError::CheckFailed);
+                }
+
+                let all_command_checks_passed = command
+                    .checks
+                    .iter()
+                    .all(|check| (check.0)(&mut context, message, args, command));
+
+                if all_command_checks_passed {
                     None
                 } else {
                     Some(DispatchError::CheckFailed)
@@ -702,7 +729,7 @@ impl StandardFramework {
     ///
     /// ```rust,ignore
     /// framework.command("ping", |c| c
-    ///     .description("Responds with 'pong'.")
+    ///     .desc("Responds with 'pong'.")
     ///     .exec(|ctx, _, _| {
     ///         let _ = ctx.say("pong");
     ///     }));
@@ -718,12 +745,16 @@ impl StandardFramework {
                 let cmd = f(CreateCommand::default()).finish();
                 let name = command_name.to_string();
 
-                if let Some(ref prefix) = group.prefix {
+                if let Some(ref prefixes) = group.prefixes {
+
                     for v in &cmd.options().aliases {
-                        group.commands.insert(
-                            format!("{} {}", prefix, v),
-                            CommandOrAlias::Alias(format!("{} {}", prefix, name)),
-                        );
+
+                        for prefix in prefixes {
+                            group.commands.insert(
+                                format!("{} {}", prefix, v),
+                                CommandOrAlias::Alias(format!("{} {}", prefix, name)),
+                            );
+                        }
                     }
                 } else {
                     for v in &cmd.options().aliases {
@@ -936,7 +967,7 @@ impl StandardFramework {
     /// Sets what code should be executed when a user sends `(prefix)help`.
     ///
     /// If a command named `help` was set with [`command`], then this takes precendence first.
-    /// 
+    ///
     /// [`command`]: #method.command
     pub fn help(mut self, f: HelpFunction) -> Self {
         let a = CreateHelpCommand(HelpOptions::default(), f).finish();
@@ -951,12 +982,22 @@ impl StandardFramework {
     /// to alter help-commands.
     pub fn customised_help<F>(mut self, f: HelpFunction, c: F) -> Self
         where F: FnOnce(CreateHelpCommand) -> CreateHelpCommand {
-        let a = c(CreateHelpCommand(HelpOptions::default(), f));
+        let res = c(CreateHelpCommand(HelpOptions::default(), f));
 
-        self.help = Some(a.finish());
+        self.help = Some(res.finish());
 
         self
     }
+}
+
+fn skip_chars_and_trim_to_new_string(str_to_transform_to_chars: &str, chars_to_skip: usize) -> String {
+    let mut chars = str_to_transform_to_chars.chars();
+
+    if chars_to_skip > 0 {
+        chars.nth(chars_to_skip - 1);
+    }
+
+    chars.as_str().trim().to_string()
 }
 
 impl Framework for StandardFramework {
@@ -988,15 +1029,16 @@ impl Framework for StandardFramework {
 
         'outer: for position in positions {
             let mut built = String::new();
-            let round = message.content.chars().skip(position).collect::<String>();
-            let round = round.trim().split_whitespace().collect::<Vec<&str>>(); // Call to `trim` causes the related bug under the main bug #206 - where the whitespace settings are ignored. The fix is implemented as an additional check inside command::positions
+
+            let orginal_round = skip_chars_and_trim_to_new_string(&message.content, position);
+            let mut round = orginal_round.split_whitespace();
 
             for i in 0..self.configuration.depth {
                 if i != 0 {
                     built.push(' ');
                 }
 
-                built.push_str(match round.get(i) {
+                built.push_str(match round.next() {
                     Some(piece) => piece,
                     None => continue 'outer,
                 });
@@ -1019,9 +1061,27 @@ impl Framework for StandardFramework {
                         built = points_to.to_string();
                     }
 
-                    let to_check = if let Some(ref prefix) = group.prefix {
-                        if built.starts_with(prefix) && command_length > prefix.len() + 1 {
-                            built[(prefix.len() + 1)..].to_string()
+                    let mut check_contains_group_prefix = false;
+                    let to_check = if let Some(ref prefixes) = group.prefixes {
+                        // Once `built` starts with a set prefix,
+                        // we want to make sure that all following matching prefixes are longer
+                        // than the last matching one, this prevents picking a wrong prefix,
+                        // e.g. "f" instead of "ferris" due to "f" having a lower index in the `Vec`.
+                        let longest_matching_prefix_len = prefixes.iter().fold(0, |longest_prefix_len, prefix|
+                            if prefix.len() > longest_prefix_len && built.starts_with(prefix)
+                            && (orginal_round.len() == built.len() || command_length > prefix.len() + 1) {
+                                prefix.len()
+                            } else {
+                                longest_prefix_len
+                            }
+                        );
+
+                        if longest_matching_prefix_len == built.len() {
+                            check_contains_group_prefix = true;
+                            String::new()
+                        } else if longest_matching_prefix_len > 0 {
+                            check_contains_group_prefix = true;
+                            built[longest_matching_prefix_len + 1..].to_string()
                         } else {
                             continue;
                         }
@@ -1063,57 +1123,90 @@ impl Framework for StandardFramework {
                         }
                     }
 
-                    if let Some(&CommandOrAlias::Command(ref command)) =
-                        group.commands.get(&to_check) {
-                        let command = Arc::clone(command);
 
-                        if let Some(error) = self.should_fail(
-                            &mut context,
-                            &message,
-                            &command.options(),
-                            &mut args,
-                            &to_check,
-                            &built,
-                        ) {
-                            if let Some(ref handler) = self.dispatch_error_handler {
-                                handler(context, message, error);
-                            }
-                            return;
-                        }
+                    if !to_check.is_empty() {
 
-                        threadpool.execute(move || {
-                            if let Some(before) = before {
-                                if !(before)(&mut context, &message, &built) {
-                                    return;
+                        if let Some(&CommandOrAlias::Command(ref command)) =
+                            group.commands.get(&to_check) {
+                            let command = Arc::clone(command);
+
+                            if let Some(error) = self.should_fail(
+                                &mut context,
+                                &message,
+                                &command.options(),
+                                &group,
+                                &mut args,
+                                &to_check,
+                                &built,
+                            ) {
+                                if let Some(ref handler) = self.dispatch_error_handler {
+                                    handler(context, message, error);
                                 }
-                            }
-
-                            if !command.before(&mut context, &message) {
                                 return;
                             }
 
-                            let result = command.execute(&mut context, &message, args);
+                            threadpool.execute(move || {
+                                if let Some(before) = before {
+                                    if !(before)(&mut context, &message, &built) {
+                                        return;
+                                    }
+                                }
 
-                            command.after(&mut context, &message, &result);
+                                if !command.before(&mut context, &message) {
+                                    return;
+                                }
 
-                            if let Some(after) = after {
-                                (after)(&mut context, &message, &built, result);
-                            }
-                        });
+                                let result = command.execute(&mut context, &message, args);
 
-                        return;
+                                command.after(&mut context, &message, &result);
+
+                                if let Some(after) = after {
+                                    (after)(&mut context, &message, &built, result);
+                                }
+                            });
+
+                            return;
+
+                        }
+                    }
+
+                    if check_contains_group_prefix {
+                        if let Some(CommandOrAlias::Command(ref command)) = &group.default_command {
+                            let command = Arc::clone(command);
+
+                            threadpool.execute(move || {
+                                if let Some(before) = before {
+                                    if !(before)(&mut context, &message, &built) {
+                                        return;
+                                    }
+                                }
+
+                                if !command.before(&mut context, &message) {
+                                    return;
+                                }
+
+                                let result = command.execute(&mut context, &message, args);
+
+                                command.after(&mut context, &message, &result);
+
+                                if let Some(after) = after {
+                                    (after)(&mut context, &message, &built, result);
+                                }
+                            });
+
+                            return;
+                        }
                     }
                 }
             }
         }
 
-        let unrecognised_command = self.unrecognised_command.clone();
-
-        threadpool.execute(move || {
-            if let Some(unrecognised_command) = unrecognised_command {
+        if let Some(unrecognised_command) = &self.unrecognised_command {
+            let unrecognised_command = unrecognised_command.clone();
+            threadpool.execute(move || {
                 (unrecognised_command)(&mut context, &message, &unrecognised_command_name);
-            }
-        });
+            });
+        }
     }
 
     fn update_current_user(&mut self, user_id: UserId) {
@@ -1163,10 +1256,6 @@ pub enum HelpBehaviour {
 use std::fmt;
 impl fmt::Display for HelpBehaviour {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-       match *self {
-           HelpBehaviour::Strike => write!(f, "HelpBehaviour::Strike"),
-           HelpBehaviour::Hide => write!(f, "HelpBehaviour::Hide"),
-           HelpBehaviour::Nothing => write!(f, "HelBehaviour::Nothing"),
-       }
+       fmt::Debug::fmt(self, f)
     }
 }

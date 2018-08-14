@@ -1,5 +1,5 @@
 use byteorder::{
-    BigEndian, 
+    BigEndian,
     ByteOrder,
     LittleEndian,
     ReadBytesExt,
@@ -32,15 +32,15 @@ use std::{
     net::{SocketAddr, ToSocketAddrs, UdpSocket},
     sync::{
         mpsc::{
-            self, 
-            Receiver as MpscReceiver, 
+            self,
+            Receiver as MpscReceiver,
             Sender as MpscSender
         },
         Arc,
     },
     thread::{
-        self, 
-        Builder as ThreadBuilder, 
+        self,
+        Builder as ThreadBuilder,
         JoinHandle
     },
     time::Duration
@@ -53,8 +53,8 @@ use websocket::{
     sync::{
         client::ClientBuilder,
         stream::{
-            AsTcpStream, 
-            TcpStream, 
+            AsTcpStream,
+            TcpStream,
             TlsStream
         },
     },

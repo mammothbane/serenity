@@ -4,8 +4,8 @@ use std::{
     collections::{HashMap, VecDeque},
     sync::{
         mpsc::{
-            Receiver, 
-            RecvTimeoutError, 
+            Receiver,
+            RecvTimeoutError,
             Sender},
         Arc
     },
