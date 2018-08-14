@@ -1,9 +1,8 @@
 pub use super::{
-    Args, 
-    Command, 
-    CommandGroup, 
-    CommandOptions, 
-    CommandError,
+    Args,
+    Command,
+    CommandGroup,
+    CommandOptions,
     Check,
 };
 
@@ -70,13 +69,13 @@ impl CreateCommand {
     ///
     /// ```rust,no_run
     /// # use serenity::prelude::EventHandler;
+    /// # use failure::Error;
     /// # struct Handler;
     /// # impl EventHandler for Handler {}
     /// use serenity::client::{Client, Context};
     /// use serenity::framework::standard::{
     ///     Args,
     ///     CommandOptions,
-    ///     CommandError,
     ///     StandardFramework,
     /// };
     /// use serenity::model::channel::Message;
@@ -93,7 +92,7 @@ impl CreateCommand {
     ///         .exec(ping)));
     ///
     /// fn ping(_context: &mut Context, message: &Message, _args: Args) -> Result<(),
-    /// CommandError> {
+    /// Error> {
     ///     message.channel_id.say("Pong!")?;
     ///
     ///     Ok(())

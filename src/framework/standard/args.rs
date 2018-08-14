@@ -1,9 +1,8 @@
 use std::str::FromStr;
 use internal::prelude::*;
-use failure::ResultExt;
 
 /// Defines how an operation on an `Args` method failed.
-#[derive(Debug, Fail)]
+#[derive(Debug, Fail, PartialEq, Eq)]
 pub enum ArgError {
     /// "END-OF-STRING", more precisely, there isn't anything to parse anymore.
     #[fail(display = "reached end of string")]
@@ -406,7 +405,7 @@ impl Args {
     ///
     /// assert_eq!(*args.multiple::<u32>().unwrap(), [42, 69]);
     /// ```
-    pub fn multiple<T: FromStr>(mut self) -> Result<Vec<T>, T::Err>
+    pub fn multiple<T: FromStr>(mut self) -> Result<Vec<T>>
         where T::Err: Fail {
         if self.is_empty() {
             return Err(ArgError::Eos.into());
@@ -532,15 +531,15 @@ impl Args {
     /// assert_eq!(args.single::<String>().unwrap(), "c42");
     /// assert!(args.is_empty());
     /// ```
-    pub fn find<T: FromStr>(&mut self) -> Result<T, T::Err>
-        where T::Err: StdError {
+    pub fn find<T: FromStr>(&mut self) -> Result<T>
+        where T::Err: Fail {
         if self.is_empty() {
-            return Err(Error::Eos);
+            return Err(ArgError::Eos.into());
         }
 
         let pos = match self.args.iter().map(|t| quotes_extract(t)).position(|s| s.parse::<T>().is_ok()) {
             Some(p) => p,
-            None => return Err(Error::Eos),
+            None => return Err(ArgError::Eos.into()),
         };
 
         let parsed = T::from_str(quotes_extract(&self.args[pos]))?;
@@ -568,7 +567,7 @@ impl Args {
     /// ```
     ///
     /// [`find`]: #method.find
-    pub fn multiple<T: FromStr>(mut self) -> Result<Vec<T>, T::Err>
+    pub fn find_n<T: FromStr>(&mut self) -> Result<T>
         where T::Err: Fail {
         if self.is_empty() {
             return Err(ArgError::Eos.into());
@@ -581,6 +580,7 @@ impl Args {
 
         Ok(T::from_str(quotes_extract(&self.args[pos]))?)
     }
+
 
     /// Gets original message passed to the command.
     ///

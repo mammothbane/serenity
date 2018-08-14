@@ -1,75 +1,75 @@
 extern crate serenity;
-#[macro_use] extern crate matches;
 
 use serenity::framework::standard::{Args, ArgError};
 
 #[test]
 fn single_with_empty_message() {
     let mut args = Args::new("", &["".to_string()]);
-    assert_matches!(args.single::<String>().unwrap_err(), ArgError::Eos);
+    assert_eq!(args.single::<String>().unwrap_err().downcast::<ArgError>().unwrap(), ArgError::Eos);
 
     let mut args = Args::new("", &[",".to_string()]);
-    assert_matches!(args.single::<String>().unwrap_err(), ArgError::Eos);
+    assert_eq!(args.single::<String>().unwrap_err().downcast::<ArgError>().unwrap(), ArgError::Eos);
 }
 
 #[test]
 fn single_n_with_empty_message() {
     let args = Args::new("", &["".to_string()]);
-    assert_matches!(args.single_n::<String>().unwrap_err(), ArgError::Eos);
+    assert_eq!(args.single_n::<String>().unwrap_err().downcast::<ArgError>().unwrap(), ArgError::Eos);
 
     let args = Args::new("", &[",".to_string()]);
-    assert_matches!(args.single_n::<String>().unwrap_err(), ArgError::Eos);
+    assert_eq!(args.single_n::<String>().unwrap_err().downcast::<ArgError>().unwrap(), ArgError::Eos);
 }
 
 #[test]
 fn single_quoted_with_empty_message() {
     let mut args = Args::new("", &["".to_string()]);
-    assert_matches!(args.single_quoted::<String>().unwrap_err(), ArgError::Eos);
+    assert_eq!(args.single_quoted::<String>().unwrap_err().downcast::<ArgError>().unwrap(), ArgError::Eos);
 
     let mut args = Args::new("", &[",".to_string()]);
-    assert_matches!(args.single_quoted::<String>().unwrap_err(), ArgError::Eos);
+    assert_eq!(args.single_quoted::<String>().unwrap_err().downcast::<ArgError>().unwrap(), ArgError::Eos);
 }
 
 #[test]
 fn multiple_with_empty_message() {
     let args = Args::new("", &["".to_string()]);
-    assert_matches!(args.multiple::<String>().unwrap_err(), ArgError::Eos);
+    
+    assert_eq!(args.multiple::<String>().unwrap_err().downcast::<ArgError>().unwrap(), ArgError::Eos);
 
     let args = Args::new("", &[",".to_string()]);
-    assert_matches!(args.multiple::<String>().unwrap_err(), ArgError::Eos);
+    assert_eq!(args.multiple::<String>().unwrap_err().downcast::<ArgError>().unwrap(), ArgError::Eos);
 }
 
 #[test]
 fn multiple_quoted_with_empty_message() {
     let args = Args::new("", &["".to_string()]);
-    assert_matches!(args.multiple_quoted::<String>().unwrap_err(), ArgError::Eos);
+    assert_eq!(args.multiple_quoted::<String>().unwrap_err().downcast::<ArgError>().unwrap(), ArgError::Eos);
 
     let args = Args::new("", &[",".to_string()]);
-    assert_matches!(args.multiple_quoted::<String>().unwrap_err(), ArgError::Eos);
+    assert_eq!(args.multiple_quoted::<String>().unwrap_err().downcast::<ArgError>().unwrap(), ArgError::Eos);
 }
 
 #[test]
 fn skip_with_empty_message() {
     let mut args = Args::new("", &["".to_string()]);
-    assert_matches!(args.skip(), None);
+    assert_eq!(args.skip(), None);
 
     let mut args = Args::new("", &[",".to_string()]);
-    assert_matches!(args.skip(), None);
+    assert_eq!(args.skip(), None);
 }
 
 #[test]
 fn skip_for_with_empty_message() {
     let mut args = Args::new("", &["".to_string()]);
-    assert_matches!(args.skip_for(0), None);
+    assert_eq!(args.skip_for(0), None);
 
     let mut args = Args::new("", &["".to_string()]);
-    assert_matches!(args.skip_for(5), None);
+    assert_eq!(args.skip_for(5), None);
 
     let mut args = Args::new("", &[",".to_string()]);
-    assert_matches!(args.skip_for(0), None);
+    assert_eq!(args.skip_for(0), None);
 
     let mut args = Args::new("", &[",".to_string()]);
-    assert_matches!(args.skip_for(5), None);
+    assert_eq!(args.skip_for(5), None);
 }
 
 #[test]
@@ -368,7 +368,7 @@ fn remaining_len_before_and_after_find() {
     assert_eq!(args.remaining(), 1);
     assert_eq!(args.find::<String>().unwrap(), "a");
     assert_eq!(args.remaining(), 0);
-    assert_matches!(args.find::<String>().unwrap_err(), ArgError::Eos);
+    assert_eq!(args.find::<String>().unwrap_err().downcast::<ArgError>().unwrap(), ArgError::Eos);
     assert_eq!(args.remaining(), 0);
 }
 
@@ -400,7 +400,7 @@ fn multiple_i32_with_one_delimiter() {
 fn multiple_i32_with_one_delimiter_and_parse_error() {
     let args = Args::new("1 2 3 abc", &[" ".to_string()]);
 
-    assert_matches!(args.multiple::<i32>().unwrap_err(), ArgError::Parse(_));
+    assert!(args.multiple::<i32>().is_err());
 }
 
 #[test]
@@ -414,7 +414,7 @@ fn multiple_i32_with_three_delimiters() {
 fn single_after_failed_single() {
     let mut args = Args::new("b 2", &[" ".to_string()]);
 
-    assert_matches!(args.single::<i32>().unwrap_err(), ArgError::Parse(_));
+    assert!(args.single::<i32>().is_err());
     // Test that `single` short-circuts on an error and leaves the source as is.
     assert_eq!(args.remaining(), 2);
     assert_eq!(args.single::<String>().unwrap(), "b");
@@ -427,6 +427,6 @@ fn remaining_len_after_failed_single_quoted() {
 
     assert_eq!(args.remaining(), 2);
     // Same goes for `single_quoted` and the alike.
-    assert_matches!(args.single_quoted::<i32>().unwrap_err(), ArgError::Parse(_));
+    assert!(args.single_quoted::<i32>().is_err());
     assert_eq!(args.remaining(), 2);
 }

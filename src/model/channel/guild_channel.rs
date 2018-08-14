@@ -172,7 +172,7 @@ impl GuildChannel {
     /// let cache = CACHE.read();
     /// let channel = cache
     ///     .guild_channel(channel_id)
-    ///     .ok_or(ModelError::ItemMissing)?;
+    ///     .ok_or(ModelError::ItemMissing.into())?;
     ///
     /// channel.read().create_permission(&overwrite)?;
     /// #     Ok(())
@@ -213,7 +213,7 @@ impl GuildChannel {
     /// let cache = CACHE.read();
     /// let channel = cache
     ///     .guild_channel(channel_id)
-    ///     .ok_or(ModelError::ItemMissing)?;
+    ///     .ok_or(ModelError::ItemMissing.into())?;
     ///
     /// channel.read().create_permission(&overwrite)?;
     /// #     Ok(())

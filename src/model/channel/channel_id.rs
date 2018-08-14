@@ -153,7 +153,7 @@ impl ChannelId {
         let len = ids.len();
 
         if len == 0 || len > 100 {
-            Err(ModelError::BulkDeleteAmount.into())
+            return Err(ModelError::BulkDeleteAmount.into());
         } else if ids.len() == 1 {
             self.delete_message(ids[0])?;
         } else {
