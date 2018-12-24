@@ -13,17 +13,18 @@
 extern crate serenity;
 extern crate typemap;
 
-use serenity::client::bridge::gateway::{ShardId, ShardManager};
-use serenity::framework::standard::{Args, DispatchError, StandardFramework, HelpBehaviour, CommandOptions, help_commands};
-use serenity::model::channel::Message;
-use serenity::model::gateway::Ready;
-use serenity::model::Permissions;
-use serenity::prelude::Mutex;
-use serenity::prelude::*;
-use std::collections::HashMap;
-use std::env;
-use std::fmt::Write;
-use std::sync::Arc;
+use std::{collections::HashMap, env, fmt::Write, sync::Arc};
+
+use serenity::{
+    client::bridge::gateway::{ShardId, ShardManager},
+    framework::standard::{
+        help_commands, Args, CommandOptions, DispatchError, HelpBehaviour, StandardFramework,
+    },
+    model::{channel::Message, gateway::Ready, Permissions},
+    prelude::*,
+    utils::{content_safe, ContentSafeOptions},
+};
+
 use typemap::Key;
 
 // A container type is created for inserting into the Client's `data`, which
@@ -81,6 +82,9 @@ fn main() {
             .allow_whitespace(true)
             .on_mention(true)
             .prefix("~")
+            // A command that will be executed
+            // if nothing but a prefix is passed.
+            .prefix_only_cmd(about)
             // You can set multiple delimiters via delimiters()
             // or just one via delimiter(",")
             // If you set multiple delimiters, the order you list them
@@ -107,7 +111,7 @@ fn main() {
             // the command's name does not exist in the counter, add a default
             // value of 0.
             let mut data = ctx.data.lock();
-            let counter = data.get_mut::<CommandCounter>().unwrap();
+            let counter = data.get_mut::<CommandCounter>().expect("Expected CommandCounter in ShareMap.");
             let entry = counter.entry(command_name.to_string()).or_insert(0);
             *entry += 1;
 
@@ -125,6 +129,10 @@ fn main() {
         // command could not be found.
         .unrecognised_command(|_, _, unknown_command_name| {
             println!("Could not find command named '{}'", unknown_command_name);
+        })
+        // Set a function that's called whenever a message is not a command.
+        .message_without_command(|_, message| {
+            println!("Message is not a command '{}'", message.content);
         })
         // Set a function that's called whenever a command's execution didn't complete for one
         // reason or another. For example, when a user has exceeded a rate-limit or a command
@@ -149,6 +157,11 @@ fn main() {
                 // Some arguments require a `{}` in order to replace it with contextual information.
                 // In this case our `{}` refers to a command's name.
                 .command_not_found_text("Could not find: `{}`.")
+                // Define the maximum Levenshtein-distance between a searched command-name
+                // and commands. If the distance is lower than or equal the set distance,
+                // it will be displayed as a suggestion.
+                // Setting the distance to 0 will disable suggestions.
+                .max_levenshtein_distance(3)
                 // On another note, you can set up the help-menu-filter-behaviour.
                 // Here are all possible settings shown on all possible options.
                 // First case is if a user lacks permissions for a command, we can hide the command.
@@ -167,11 +180,20 @@ fn main() {
             // Make this command use the "complicated" bucket.
             .bucket("complicated")
             .cmd(commands))
+        // Command that will repeat passed arguments and remove user and
+        // role mentions with safe alternative.
+        .command("say", |c| c
+            .cmd(say))
         .group("Emoji", |g| g
-            // Sets a single prefix for a group:
-            .prefix("emoji")
+            // Sets multiple prefixes for a group.
+            // This requires us to call commands in this group
+            // via `~emoji` (or `~e`) instead of just `~`.
+            .prefixes(vec!["emoji", "em"])
+            // Set a description to appear if a user wants to display a single group
+            // e.g. via help using the group-name or one of its prefixes.
+            .desc("A group with commands providing an emoji as response.")
             // Sets a command that will be executed if only a group-prefix was passed.
-            .default_cmd(dog)
+            .default_cmd(bird)
             .command("cat", |c| c
                 .desc("Sends an emoji with a cat.")
                 .batch_known_as(vec!["kitty", "neko"]) // Adds multiple aliases
@@ -184,10 +206,10 @@ fn main() {
                 .bucket("emoji")
                 .cmd(dog)))
         .group("Math", |g| g
-            // Sets multiple prefixes for a group.
-            // This requires us to call commands in this group
-            // via `~math` (or `~m`) instead of just `~`.
-            .prefixes(vec!["m", "math"])
+            // Sets a single prefix for this group.
+            // So one has to call commands in this group
+            // via `~math` instead of just `~`.
+            .prefix("math")
             .command("multiply", |c| c
                 .known_as("*") // Lets us also call `~math *` instead of just `~math multiply`.
                 .cmd(multiply)))
@@ -204,10 +226,10 @@ fn main() {
         .group("Owner", |g| g
             // This check applies to every command on this group.
             // User needs to pass the test for the command to execute.
-            .check(admin_check) 
+            .check(admin_check)
             .command("am i admin", |c| c
-                .cmd(am_i_admin))
-                .guild_only(true)
+                .cmd(am_i_admin)
+                .guild_only(true))
         ),
     );
 
@@ -226,13 +248,39 @@ command!(commands(ctx, msg, _args) {
     let mut contents = "Commands used:\n".to_string();
 
     let data = ctx.data.lock();
-    let counter = data.get::<CommandCounter>().unwrap();
+    let counter = data.get::<CommandCounter>().expect("Expected CommandCounter in ShareMap.");
 
     for (k, v) in counter {
         let _ = write!(contents, "- {name}: {amount}\n", name=k, amount=v);
     }
 
     if let Err(why) = msg.channel_id.say(&contents) {
+        println!("Error sending message: {:?}", why);
+    }
+});
+
+// Repeats what the user passed as argument but ensures that user and role
+// mentions are replaced with a safe textual alternative.
+// In this example channel mentions are excluded via the `ContentSafeOptions`.
+command!(say(_ctx, msg, args) {
+    let mut settings = if let Some(guild_id) = msg.guild_id {
+       // By default roles, users, and channel mentions are cleaned.
+       ContentSafeOptions::default()
+            // We do not want to clean channal mentions as they
+            // do not ping users.
+            .clean_channel(false)
+            // If it's a guild channel, we want mentioned users to be displayed
+            // as their display name.
+            .display_as_member_from(guild_id)
+    } else {
+        ContentSafeOptions::default()
+            .clean_channel(false)
+            .clean_role(false)
+    };
+
+    let mut content = content_safe(&args.full(), &settings);
+
+    if let Err(why) = msg.channel_id.say(&content) {
         println!("Error sending message: {:?}", why);
     }
 });
@@ -249,7 +297,7 @@ fn owner_check(_: &mut Context, msg: &Message, _: &mut Args, _: &CommandOptions)
 
 // A function which acts as a "check", to determine whether to call a command.
 //
-// This check analyses whether a guild member permissions has 
+// This check analyses whether a guild member permissions has
 // administrator-permissions.
 fn admin_check(_: &mut Context, msg: &Message, _: &mut Args, _: &CommandOptions) -> bool {
     if let Some(member) = msg.member() {
@@ -310,8 +358,8 @@ command!(about_role(_ctx, msg, args) {
 //
 // Argument type overloading is currently not supported.
 command!(multiply(_ctx, msg, args) {
-    let first = args.single::<f64>().unwrap();
-    let second = args.single::<f64>().unwrap();
+    let first = args.single::<f64>()?;
+    let second = args.single::<f64>()?;
 
     let res = first * second;
 
@@ -378,6 +426,18 @@ command!(dog(_ctx, msg, _args) {
 
 command!(cat(_ctx, msg, _args) {
     if let Err(why) = msg.channel_id.say(":cat:") {
+        println!("Error sending message: {:?}", why);
+    }
+});
+
+command!(bird(_ctx, msg, args) {
+    let say_content = if args.is_empty() {
+        ":bird: can find animals for you.".to_string()
+    } else {
+        format!(":bird: could not find animal named: `{}`.", args.full())
+    };
+
+    if let Err(why) = msg.channel_id.say(say_content) {
         println!("Error sending message: {:?}", why);
     }
 });

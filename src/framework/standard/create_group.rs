@@ -43,7 +43,8 @@ impl CreateGroup {
             .dm_only(self.0.dm_only)
             .guild_only(self.0.guild_only)
             .help_available(self.0.help_available)
-            .owners_only(self.0.owners_only);
+            .owners_only(self.0.owners_only)
+            .owner_privileges(self.0.owner_privileges);
 
         if let Some(ref bucket) = self.0.bucket {
             cmd = cmd.bucket(bucket);
@@ -150,6 +151,14 @@ impl CreateGroup {
         self
     }
 
+    /// Whether owners shall bypass buckets, missing permissions,
+    /// wrong channels, missing roles, and checks.
+    pub fn owner_privileges(mut self, owner_privileges: bool) -> Self {
+        self.0.owner_privileges = owner_privileges;
+
+        self
+    }
+
     /// Whether command should be displayed in help list or not, used by other commands.
     pub fn help_available(mut self, help_available: bool) -> Self {
         self.0.help_available = help_available;
@@ -197,11 +206,19 @@ impl CreateGroup {
     /// Adds a command for a group that will be executed if no command-name
     /// has been passed.
     pub fn default_cmd<C: Command + 'static>(mut self, c: C) -> Self {
-        let cmd: Arc<Command> = Arc::new(c);
+        c.init();
 
-        self.0.default_command = Some(CommandOrAlias::Command(Arc::clone(&cmd)));
+        let cmd_with_group_options = self.build_command().cmd(c).finish();
+        let cmd_finished = CommandOrAlias::Command(cmd_with_group_options);
+        self.0.default_command = Some(cmd_finished);
 
-        cmd.init();
+        self
+    }
+
+    /// Sets a description for the group that will be displayed if only
+    /// one specific group is requested via help.
+    pub fn desc(mut self, text: &str) -> Self {
+        self.0.description = Some(text.to_string());
 
         self
     }

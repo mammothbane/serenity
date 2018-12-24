@@ -16,6 +16,9 @@ use super::prelude::*;
 /// This is only applicable to bot users.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct BotGateway {
+    /// Information describing how many gateway sessions you can initiate within
+    /// a ratelimit period.
+    pub session_start_limit: SessionStartLimit,
     /// The number of shards that is recommended to be used by the current bot
     /// user.
     pub shards: u64,
@@ -25,6 +28,8 @@ pub struct BotGateway {
 
 /// Representation of a game that a [`User`] is playing -- or streaming in the
 /// case that a stream URL is provided.
+///
+/// [`User`]: ../user/struct.User.html
 #[derive(Clone, Debug, Serialize)]
 pub struct Game {
     /// The type of game status.
@@ -131,6 +136,66 @@ impl Game {
     }
 }
 
+impl<'a> From<&'a str> for Game {
+    fn from(name: &'a str) -> Self {
+        Game {
+            kind: GameType::Playing,
+            name: name.to_owned(),
+            url: None,
+        }
+    }
+}
+
+impl From<String> for Game {
+    fn from(name: String) -> Self {
+        Game {
+            kind: GameType::Playing,
+            url: None,
+            name,
+        }
+    }
+}
+
+impl<'a> From<(String, GameType)> for Game {
+    fn from((name, kind): (String, GameType)) -> Self {
+        Self {
+            url: None,
+            kind,
+            name,
+        }
+    }
+}
+
+impl<'a> From<(&'a str, &'a str)> for Game {
+    fn from((name, url): (&'a str, &'a str)) -> Self {
+        Self {
+            kind: GameType::Streaming,
+            name: name.to_owned(),
+            url: Some(url.to_owned()),
+        }
+    }
+}
+
+impl From<(String, String)> for Game {
+    fn from((name, url): (String, String)) -> Self {
+        Self {
+            kind: GameType::Streaming,
+            url: Some(url),
+            name,
+        }
+    }
+}
+
+impl From<(String, GameType, String)> for Game {
+    fn from((name, kind, url): (String, GameType, String)) -> Self {
+        Self {
+            url: Some(url),
+            kind,
+            name,
+        }
+    }
+}
+
 impl<'de> Deserialize<'de> for Game {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> StdResult<Self, D::Error> {
         let mut map = JsonMap::deserialize(deserializer)?;
@@ -201,12 +266,12 @@ pub struct Gateway {
 
 /// Information detailing the current online status of a [`User`].
 ///
-/// [`User`]: struct.User.html
+/// [`User`]: ../user/struct.User.html
 #[derive(Clone, Debug)]
 pub struct Presence {
     /// The game that a [`User`] is current playing.
     ///
-    /// [`User`]: struct.User.html
+    /// [`User`]: ../user/struct.User.html
     pub game: Option<Game>,
     /// The date of the last presence update.
     pub last_modified: Option<u64>,
@@ -214,7 +279,7 @@ pub struct Presence {
     pub nick: Option<String>,
     /// The user's online status.
     pub status: OnlineStatus,
-    /// The Id of the [`User`]. Can be used to calculate the user's creation
+    /// The Id of the [`User`](../user/struct.User.html). Can be used to calculate the user's creation
     /// date.
     pub user_id: UserId,
     /// The associated user instance.
@@ -315,4 +380,17 @@ pub struct Ready {
     pub user: CurrentUser,
     #[serde(rename = "v")]
     pub version: u64,
+}
+
+/// Information describing how many gateway sessions you can initiate within a
+/// ratelimit period.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct SessionStartLimit {
+    /// The number of sessions that you can still initiate within the current
+    /// ratelimit period.
+    pub remaining: u64,
+    /// The number of milliseconds until the ratelimit period resets.
+    pub reset_after: u64,
+    /// The total number of session starts within the ratelimit period allowed.
+    pub total: u64,
 }

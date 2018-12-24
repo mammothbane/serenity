@@ -61,6 +61,7 @@ impl HelpCommand for Help {
 pub type BeforeHook = Fn(&mut Context, &Message, &str) -> bool + Send + Sync + 'static;
 pub type AfterHook = Fn(&mut Context, &Message, &str, Result<()>) + Send + Sync + 'static;
 pub type UnrecognisedCommandHook = Fn(&mut Context, &Message, &str) + Send + Sync + 'static;
+pub type MessageWithoutCommandHook = Fn(&mut Context, &Message) + Send + Sync + 'static;
 pub(crate) type InternalCommand = Arc<Command>;
 pub type PrefixCheck = Fn(&mut Context, &Message) -> Option<String> + Send + Sync + 'static;
 
@@ -89,12 +90,14 @@ pub struct CommandGroup {
     pub help_available: bool,
     pub dm_only: bool,
     pub guild_only: bool,
+    pub owner_privileges: bool,
     pub owners_only: bool,
     pub help: Option<Arc<Help>>,
     /// A set of checks to be called prior to executing the command-group. The checks
     /// will short-circuit on the first check that returns `false`.
     pub checks: Vec<Check>,
     pub default_command: Option<CommandOrAlias>,
+    pub description: Option<String>,
 }
 
 impl Default for CommandGroup {
@@ -106,12 +109,14 @@ impl Default for CommandGroup {
             required_permissions: Permissions::empty(),
             dm_only: false,
             guild_only: false,
+            owner_privileges: true,
             help_available: true,
             owners_only: false,
             allowed_roles: Vec::new(),
             help: None,
             checks: Vec::new(),
             default_command: None,
+            description: None,
         }
     }
 }
@@ -129,7 +134,7 @@ pub struct CommandOptions {
     pub example: Option<String>,
     /// Command usage schema, used by other commands.
     pub usage: Option<String>,
-    /// Minumum amount of arguments that should be passed.
+    /// Minimum amount of arguments that should be passed.
     pub min_args: Option<i32>,
     /// Maximum amount of arguments that can be passed.
     pub max_args: Option<i32>,
@@ -143,6 +148,8 @@ pub struct CommandOptions {
     pub dm_only: bool,
     /// Whether command can be used only in guilds or not.
     pub guild_only: bool,
+    /// Whether the command treats owners as normal users.
+    pub owner_privileges: bool,
     /// Whether command can only be used by owners or not.
     pub owners_only: bool,
     /// Other names that can be used to call this command instead.
@@ -204,8 +211,10 @@ pub struct HelpOptions {
     pub wrong_channel: HelpBehaviour,
     /// Colour help-embed will use upon encountering an error.
     pub embed_error_colour: Colour,
-    /// Colour help-embed will use if no error occured.
+    /// Colour help-embed will use if no error occurred.
     pub embed_success_colour: Colour,
+    /// If not 0, help will check whether a command is similar to searched named.
+    pub max_levenshtein_distance: usize,
 }
 
 pub trait HelpCommand: Send + Sync + 'static {
@@ -225,7 +234,7 @@ impl HelpCommand for Arc<HelpCommand> {
 impl Default for HelpOptions {
     fn default() -> HelpOptions {
         HelpOptions {
-            suggestion_text: "Did you mean {}?".to_string(),
+            suggestion_text: "Did you mean `{}`?".to_string(),
             no_help_available_text: "**Error**: No help available.".to_string(),
             usage_label: "Usage".to_string(),
             usage_sample_label: "Sample usage".to_string(),
@@ -248,6 +257,7 @@ impl Default for HelpOptions {
             wrong_channel: HelpBehaviour::Strike,
             embed_error_colour: Colour::DARK_RED,
             embed_success_colour: Colour::ROSEWATER,
+            max_levenshtein_distance: 0,
         }
     }
 }
@@ -320,6 +330,7 @@ impl Default for CommandOptions {
             required_permissions: Permissions::empty(),
             dm_only: false,
             guild_only: false,
+            owner_privileges: true,
             help_available: true,
             owners_only: false,
             allowed_roles: Vec::new(),
@@ -328,15 +339,14 @@ impl Default for CommandOptions {
 }
 
 pub fn positions(ctx: &mut Context, msg: &Message, conf: &Configuration) -> Option<Vec<usize>> {
-    if !conf.prefixes.is_empty() || conf.dynamic_prefix.is_some() {
-        // Find out if they were mentioned. If not, determine if the prefix
-        // was used. If not, return None.
-        let mut positions: Vec<usize> = vec![];
+    // Mentions have the highest precedence.
+    if let Some(mention_end) = find_mention_end(&msg.content, conf) {
+        return Some(vec![mention_end]); // This can simply be returned without trying to find the end whitespaces as trim will remove it later
+    }
 
-        if let Some(mention_end) = find_mention_end(&msg.content, conf) {
-            positions.push(mention_end);
-            return Some(positions);
-        }
+    if !conf.prefixes.is_empty() || conf.dynamic_prefix.is_some() {
+        // Determine if a prefix was used. Otherwise return None.
+        let mut positions = Vec::new();
 
         // Dynamic prefixes, if present and suitable, always have a higher priority.
         if let Some(x) = conf.dynamic_prefix.as_ref().and_then(|f| f(ctx, msg)) {
@@ -360,7 +370,8 @@ pub fn positions(ctx: &mut Context, msg: &Message, conf: &Configuration) -> Opti
 
             // If the above do not fill `positions`, then that means no kind of prefix was present.
             // Check if a no-prefix-execution is applicable.
-            if conf.no_dm_prefix && private && positions.is_empty() {
+            if conf.no_dm_prefix && private && positions.is_empty() &&
+            !(conf.ignore_bots && msg.author.bot) {
                 positions.push(0);
             }
         }
@@ -380,10 +391,6 @@ pub fn positions(ctx: &mut Context, msg: &Message, conf: &Configuration) -> Opti
         }
 
         Some(positions)
-    } else if conf.on_mention.is_some() {
-        find_mention_end(&msg.content, conf).map(|mention_end| {
-            vec![mention_end] // This can simply be returned without trying to find the end whitespaces as trim will remove it later
-        })
     } else {
         None
     }

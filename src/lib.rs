@@ -32,8 +32,10 @@
 //! ```rust,no_run
 //! #[macro_use] extern crate serenity;
 //!
-//! use serenity::client::Client;
-//! use serenity::prelude::EventHandler;
+//! # #[cfg(all(feature = "client", feature = "standard_framework"))]
+//! # mod inner {
+//! #
+//! use serenity::client::{Client, EventHandler};
 //! use serenity::framework::standard::StandardFramework;
 //! use std::env;
 //!
@@ -41,10 +43,11 @@
 //!
 //! impl EventHandler for Handler {}
 //!
-//! fn main() {
+//! pub fn main() {
 //!     // Login with a bot token from the environment
 //!     let mut client = Client::new(&env::var("DISCORD_TOKEN").expect("token"), Handler)
 //!         .expect("Error creating client");
+//!
 //!     client.with_framework(StandardFramework::new()
 //!         .configure(|c| c.prefix("~")) // set the bot's prefix to "~"
 //!         .cmd("ping", ping));
@@ -58,6 +61,13 @@
 //! command!(ping(_context, message) {
 //!     let _ = message.reply("Pong!");
 //! });
+//! #
+//! # }
+//! #
+//! # #[cfg(all(feature = "client", feature = "standard_framework"))]
+//! # fn main() { inner::main() }
+//! # #[cfg(not(all(feature = "client", feature = "standard_framework")))]
+//! # fn main() {}
 //! ```
 //!
 //! ### Full Examples
@@ -87,11 +97,11 @@
 //! [`Event`]: model/event/enum.Event.html
 //! [`Event::MessageCreate`]: model/event/enum.Event.html#variant.MessageCreate
 //! [`Shard`]: gateway/struct.Shard.html
-//! [`examples`]: https://github.com/serenity-rs/serenity/blob/master/examples
+//! [`examples`]: https://github.com/serenity-rs/serenity/blob/current/examples
 //! [cache docs]: cache/index.html
 //! [client's module-level documentation]: client/index.html
 //! [docs]: https://discordapp.com/developers/docs/intro
-//! [examples]: https://github.com/serenity-rs/serenity/tree/master/examples
+//! [examples]: https://github.com/serenity-rs/serenity/tree/current/examples
 //! [gateway docs]: gateway/index.html
 #![doc(html_root_url = "https://docs.rs/serenity/*")]
 #![allow(unknown_lints)]
@@ -103,10 +113,12 @@
 
 #[macro_use]
 extern crate bitflags;
+#[allow(unused_imports)]
 #[macro_use]
 extern crate log;
 #[macro_use]
 extern crate serde_derive;
+#[allow(unused_imports)]
 #[macro_use]
 extern crate serde_json;
 #[macro_use]
@@ -144,6 +156,11 @@ extern crate threadpool;
 extern crate typemap;
 #[cfg(feature = "evzht9h3nznqzwl")]
 extern crate evzht9h3nznqzwl as websocket;
+
+#[allow(unused_imports)]
+#[cfg(test)]
+#[macro_use]
+extern crate matches;
 
 #[macro_use]
 mod internal;
@@ -216,7 +233,7 @@ lazy_static! {
     /// CACHE.write().settings_mut().max_messages(10);
     /// ```
     ///
-    /// [`CurrentUser`]: model/struct.CurrentUser.html
+    /// [`CurrentUser`]: model/user/struct.CurrentUser.html
     /// [`Cache`]: cache/struct.Cache.html
     /// [cache module documentation]: cache/index.html
     pub static ref CACHE: RwLock<Cache> = RwLock::new(Cache::default());

@@ -38,7 +38,7 @@ use model::{
     id::{ChannelId, GuildId, UserId},
     Permissions
 };
-use self::command::{AfterHook, BeforeHook, UnrecognisedCommandHook};
+use self::command::{AfterHook, BeforeHook, MessageWithoutCommandHook, UnrecognisedCommandHook};
 use std::{
     collections::HashMap,
     default::Default,
@@ -53,12 +53,12 @@ use client::CACHE;
 #[cfg(feature = "cache")]
 use model::channel::Channel;
 
-/// A convenience macro for generating a struct fulfilling the [`Command`] trait.
+/// A convenience macro for generating a struct fulfilling the [`Command`][command trait] trait.
 ///
-/// This is meant for use with the [`Framework`], specifically `Framework`::{[`cmd`]/[`command`]}.
+/// This is meant for use with the [`StandardFramework`], specifically `Framework`::{[`cmd`]/[`command`]}.
 ///
 ///
-/// If you're just looking for a simple "register this function as a command", use [`Framework::on`].
+/// If you're just looking for a simple "register this function as a command", use [`StandardFramework::on`].
 ///
 /// # Examples
 ///
@@ -87,11 +87,11 @@ use model::channel::Channel;
 /// });
 /// ```
 ///
-/// [`Framework`]: framework/index.html
-/// [`cmd`]: struct.Framework.html#method.cmd
-/// [`command`]: struct.Framework.html#method.command
-/// [`Framework::on`]: struct.Framework.html#method.on
-/// [`Command`]: trait.Command.html
+/// [command trait]: framework/standard/trait.Command.html
+/// [`StandardFramework`]: framework/standard/struct.StandardFramework.html
+/// [`cmd`]: framework/standard/struct.StandardFramework.html#method.cmd
+/// [`command`]: framework/standard/struct.StandardFramework.html#method.command
+/// [`StandardFramework::on`]: framework/standard/struct.StandardFramework.html#method.on
 #[macro_export]
 macro_rules! command {
     ($fname:ident($c:ident) $b:block) => {
@@ -143,6 +143,17 @@ macro_rules! command {
 
                 Ok(())
             }
+        }
+    };
+}
+
+macro_rules! command_and_help_args {
+    ($message_content:expr, $position:expr, $command_length:expr, $delimiters:expr) => {
+        {
+            let content = $message_content.chars().skip($position).skip_while(|x| x.is_whitespace())
+                .skip($command_length).collect::<String>();
+
+            Args::new(&content.trim(), $delimiters)
         }
     };
 }
@@ -235,6 +246,7 @@ pub struct StandardFramework {
     buckets: HashMap<String, Bucket>,
     after: Option<Arc<AfterHook>>,
     unrecognised_command: Option<Arc<UnrecognisedCommandHook>>,
+    message_without_command: Option<Arc<MessageWithoutCommandHook>>,
     /// Whether the framework has been "initialized".
     ///
     /// The framework is initialized once one of the following occurs:
@@ -244,13 +256,12 @@ pub struct StandardFramework {
     /// - a command check has been set.
     ///
     /// This is used internally to determine whether or not - in addition to
-    /// dispatching to the [`EventHandler::on_message`] handler - to have the
+    /// dispatching to the [`EventHandler::message`] handler - to have the
     /// framework check if a [`Event::MessageCreate`] should be processed by
     /// itself.
     ///
-    /// [`EventHandler::on_message`]:
-    /// ../client/event_handler/trait.EventHandler.html#method.on_message
-    /// [`Event::MessageCreate`]: ../model/event/enum.Event.html#variant.MessageCreate
+    /// [`EventHandler::message`]: ../../client/trait.EventHandler.html#method.message
+    /// [`Event::MessageCreate`]: ../../model/event/enum.Event.html#variant.MessageCreate
     pub initialized: bool,
     user_id: u64,
 }
@@ -284,7 +295,7 @@ impl StandardFramework {
     ///         .prefix("~")));
     /// ```
     ///
-    /// [`Client`]: ../client/struct.Client.html
+    /// [`Client`]: ../../client/struct.Client.html
     /// [`Configuration::default`]: struct.Configuration.html#method.default
     /// [`depth`]: struct.Configuration.html#method.depth
     /// [`prefix`]: struct.Configuration.html#method.prefix
@@ -354,12 +365,10 @@ impl StandardFramework {
     ///
     /// client.with_framework(StandardFramework::new()
     ///     .complex_bucket("basic", 2, 10, 3, |_, guild_id, channel_id, user_id| {
-    /// // check if the guild is `123` and the channel where the command(s) was called:
-    /// // `456`
-    ///         // and if the user who called the command(s) is `789`
-    ///         // otherwise don't apply the bucket at all.
-    /// guild_id.is_some() && guild_id.unwrap() == 123 && channel_id == 456
-    /// && user_id == 789
+    ///         // Our bucket is very strict. It cannot apply in DMs.
+    ///         // And can only apply if it's in the specific guild, channel and by the specific user.
+    ///         guild_id.is_some() && guild_id.unwrap() == 123 && channel_id == 456
+    ///         && user_id == 789
     ///     })
     ///     .command("ping", |c| c
     ///         .bucket("basic")
@@ -367,7 +376,9 @@ impl StandardFramework {
     ///             msg.channel_id.say("pong!")?;
     ///
     ///             Ok(())
-    ///         })));
+    ///         })
+    ///     )
+    /// );
     /// ```
     ///
     /// [`bucket`]: #method.bucket
@@ -413,14 +424,18 @@ impl StandardFramework {
     ///
     /// client.with_framework(StandardFramework::new()
     ///     .complex_bucket("basic", 2, 10, 3, |_, channel_id, user_id| {
-    ///         // check if the channel's id where the command(s) was called is `456`
-    ///         // and if the user who called the command(s) is `789`
-    ///         // otherwise don't apply the bucket at all.
+    ///         Our bucket is somewhat strict. It can only apply in the specific channel and by the specific user.
     ///         channel_id == 456 && user_id == 789
     ///     })
     ///     .command("ping", |c| c
     ///         .bucket("basic")
-    ///         .exec_str("pong!")));
+    ///         .exec(|_, msg, _| {
+    ///             msg.channel_id.say("pong!")?;
+    ///
+    ///             Ok(())
+    ///         })
+    ///     )
+    /// );
     /// ```
     ///
     /// [`bucket`]: #method.bucket
@@ -493,7 +508,7 @@ impl StandardFramework {
                 return true;
             }
 
-            if let Some(guild) = guild_id.find() {
+            if let Some(guild) = guild_id.to_guild_cached() {
                 return self.configuration
                     .blocked_users
                     .contains(&guild.with(|g| g.owner_id));
@@ -547,7 +562,7 @@ impl StandardFramework {
                 }
             }
 
-            if self.configuration.owners.contains(&message.author.id) {
+            if command.owner_privileges && self.configuration.owners.contains(&message.author.id) {
                 return None;
             }
 
@@ -888,7 +903,7 @@ impl StandardFramework {
     ///
     /// client.with_framework(StandardFramework::new()
     ///     .before(|_, msg, cmd_name| {
-    ///         if let Ok(channel) = msg.channel_id.get() {
+    ///         if let Ok(channel) = msg.channel_id.to_channel() {
     ///             //  Don't run unless in nsfw channel
     ///             if !channel.is_nsfw() {
     ///                 return false;
@@ -964,9 +979,34 @@ impl StandardFramework {
         self
     }
 
+    /// Specify the function to be called if a message contains no command.
+    ///
+    /// # Examples
+    ///
+    /// Using `message_without_command`:
+    ///
+    /// ```rust,no_run
+    /// # use serenity::prelude::*;
+    /// # struct Handler;
+    /// #
+    /// # impl EventHandler for Handler {}
+    /// # let mut client = Client::new("token", Handler).unwrap();
+    /// #
+    /// use serenity::framework::StandardFramework;
+    ///
+    /// client.with_framework(StandardFramework::new()
+    ///     .message_without_command(|ctx, msg| { }));
+    /// ```
+    pub fn message_without_command<F>(mut self, f: F) -> Self
+        where F: Fn(&mut Context, &Message) + Send + Sync + 'static {
+        self.message_without_command = Some(Arc::new(f));
+
+        self
+    }
+
     /// Sets what code should be executed when a user sends `(prefix)help`.
     ///
-    /// If a command named `help` was set with [`command`], then this takes precendence first.
+    /// If a command named `help` was set with [`command`], then this takes precedence first.
     ///
     /// [`command`]: #method.command
     pub fn help(mut self, f: HelpFunction) -> Self {
@@ -1019,12 +1059,54 @@ impl Framework for StandardFramework {
                 // Ensure that there is _at least one_ position remaining. There
                 // is no point in continuing if there is not.
                 if positions.is_empty() {
+
+                    if let Some(ref prefix_only_cmd) =
+                        self.configuration.prefix_only_cmd {
+                        let prefix_only_cmd = Arc::clone(prefix_only_cmd);
+                        let before = self.before.clone();
+                        let after = self.after.clone();
+
+                        threadpool.execute(move || {
+                            if let Some(before) = before {
+                                if !(before)(&mut context, &message, "") {
+                                    return;
+                                }
+                            }
+
+                            if !prefix_only_cmd.before(&mut context, &message) {
+                                return;
+                            }
+
+                            let result = prefix_only_cmd.execute(&mut context,
+                                &message, Args::new("", &Vec::new()));
+
+                            prefix_only_cmd.after(&mut context, &message,
+                                &result);
+
+                            if let Some(after) = after {
+                                (after)(&mut context, &message, "", result);
+                            }
+                        });
+                    }
+
                     return;
                 }
 
                 positions
             },
-            None => return,
+            None => {
+                if let &Some(ref message_without_command) = &self.message_without_command {
+
+                    if !(self.configuration.ignore_bots && message.author.bot) {
+                        let message_without_command = message_without_command.clone();
+                        threadpool.execute(move || {
+                            (message_without_command)(&mut context, &message);
+                        });
+                    }
+                }
+
+                return;
+            },
         };
 
         'outer: for position in positions {
@@ -1062,14 +1144,16 @@ impl Framework for StandardFramework {
                     }
 
                     let mut check_contains_group_prefix = false;
+                    let mut longest_matching_prefix_len = 0;
                     let to_check = if let Some(ref prefixes) = group.prefixes {
                         // Once `built` starts with a set prefix,
                         // we want to make sure that all following matching prefixes are longer
                         // than the last matching one, this prevents picking a wrong prefix,
                         // e.g. "f" instead of "ferris" due to "f" having a lower index in the `Vec`.
-                        let longest_matching_prefix_len = prefixes.iter().fold(0, |longest_prefix_len, prefix|
-                            if prefix.len() > longest_prefix_len && built.starts_with(prefix)
-                            && (orginal_round.len() == built.len() || command_length > prefix.len() + 1) {
+                        longest_matching_prefix_len = prefixes.iter().fold(0, |longest_prefix_len, prefix|
+                            if prefix.len() > longest_prefix_len
+                            && built.starts_with(prefix)
+                            && (orginal_round.len() == prefix.len() || built.get(prefix.len()..prefix.len() + 1) == Some(" ")) {
                                 prefix.len()
                             } else {
                                 longest_prefix_len
@@ -1089,13 +1173,6 @@ impl Framework for StandardFramework {
                         built.clone()
                     };
 
-                    let mut args = {
-                        let content = message.content.chars().skip(position).skip_while(|x| x.is_whitespace())
-                            .skip(command_length).collect::<String>();
-
-                        Args::new(&content.trim(), &self.configuration.delimiters)
-                    };
-
                     let before = self.before.clone();
                     let after = self.after.clone();
 
@@ -1104,6 +1181,8 @@ impl Framework for StandardFramework {
 
                         if let Some(help) = help {
                             let groups = self.groups.clone();
+                            let mut args = command_and_help_args!(&message.content, position, command_length, &self.configuration.delimiters);
+
                             threadpool.execute(move || {
 
                                 if let Some(before) = before {
@@ -1123,12 +1202,12 @@ impl Framework for StandardFramework {
                         }
                     }
 
-
                     if !to_check.is_empty() {
 
                         if let Some(&CommandOrAlias::Command(ref command)) =
                             group.commands.get(&to_check) {
                             let command = Arc::clone(command);
+                            let mut args = command_and_help_args!(&message.content, position, command_length, &self.configuration.delimiters);
 
                             if let Some(error) = self.should_fail(
                                 &mut context,
@@ -1171,12 +1250,31 @@ impl Framework for StandardFramework {
                     }
 
                     if check_contains_group_prefix {
-                        if let Some(CommandOrAlias::Command(ref command)) = &group.default_command {
+
+                        if let &Some(CommandOrAlias::Command(ref command)) = &group.default_command {
                             let command = Arc::clone(command);
+                            let mut args = {
+                                Args::new(&orginal_round[longest_matching_prefix_len..], &self.configuration.delimiters)
+                            };
+
+                            if let Some(error) = self.should_fail(
+                                &mut context,
+                                &message,
+                                &command.options(),
+                                &group,
+                                &mut args,
+                                &to_check,
+                                &built,
+                            ) {
+                                if let Some(ref handler) = self.dispatch_error_handler {
+                                    handler(context, message, error);
+                                }
+                                return;
+                            }
 
                             threadpool.execute(move || {
                                 if let Some(before) = before {
-                                    if !(before)(&mut context, &message, &built) {
+                                    if !(before)(&mut context, &message, &args.full()) {
                                         return;
                                     }
                                 }
@@ -1201,11 +1299,38 @@ impl Framework for StandardFramework {
             }
         }
 
-        if let Some(unrecognised_command) = &self.unrecognised_command {
-            let unrecognised_command = unrecognised_command.clone();
-            threadpool.execute(move || {
-                (unrecognised_command)(&mut context, &message, &unrecognised_command_name);
-            });
+        if !(self.configuration.ignore_bots && message.author.bot) {
+
+            if let &Some(ref unrecognised_command) = &self.unrecognised_command {
+
+                // If both functions are set, we need to clone `Context` and
+                // `Message`, else we can avoid it.
+                if let &Some(ref message_without_command) = &self.message_without_command {
+                    let mut context_unrecognised = context.clone();
+                    let message_unrecognised = message.clone();
+
+                    let unrecognised_command = unrecognised_command.clone();
+                    threadpool.execute(move || {
+                        (unrecognised_command)(&mut context_unrecognised, &message_unrecognised,
+                        &unrecognised_command_name);
+                    });
+
+                    let message_without_command = message_without_command.clone();
+                        threadpool.execute(move || {
+                            (message_without_command)(&mut context, &message);
+                    });
+                } else {
+                    let unrecognised_command = unrecognised_command.clone();
+                    threadpool.execute(move || {
+                        (unrecognised_command)(&mut context, &message, &unrecognised_command_name);
+                    });
+                }
+            } else if let &Some(ref message_without_command) = &self.message_without_command {
+                let message_without_command = message_without_command.clone();
+                    threadpool.execute(move || {
+                        (message_without_command)(&mut context, &message);
+                });
+            }
         }
     }
 
@@ -1213,18 +1338,21 @@ impl Framework for StandardFramework {
         self.user_id = user_id.0;
     }
 }
+
 #[cfg(feature = "cache")]
 pub fn has_correct_permissions(command: &Arc<CommandOptions>, message: &Message) -> bool {
-    if !command.required_permissions.is_empty() {
+    if command.required_permissions.is_empty() {
+        true
+    } else {
         if let Some(guild) = message.guild() {
             let perms = guild
                 .with(|g| g.permissions_in(message.channel_id, message.author.id));
 
-            return perms.contains(command.required_permissions);
+            perms.contains(command.required_permissions)
+        } else {
+            false
         }
     }
-
-    true
 }
 
 pub fn has_correct_roles(cmd: &Arc<CommandOptions>, guild: &Guild, member: &Member) -> bool {
@@ -1245,7 +1373,7 @@ pub fn has_correct_roles(cmd: &Arc<CommandOptions>, guild: &Guild, member: &Memb
 /// The command can't be used in the current channel (as in `DM only` or `guild only`).
 #[derive(PartialEq, Debug)]
 pub enum HelpBehaviour {
-    /// Strikes a command by applying `~~{comand_name}~~`.
+    /// Strikes a command by applying `~~{command_name}~~`.
     Strike,
     /// Does not list a command in the help-menu.
     Hide,

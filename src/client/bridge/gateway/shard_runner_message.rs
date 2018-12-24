@@ -17,7 +17,7 @@ pub enum ShardRunnerMessage {
         /// The maximum number of members to receive [`GuildMembersChunkEvent`]s
         /// for.
         ///
-        /// [`GuildMembersChunkEvent`]: ../../../model/event/GuildMembersChunkEvent.html
+        /// [`GuildMembersChunkEvent`]: ../../../model/event/struct.GuildMembersChunkEvent.html
         limit: Option<u16>,
         /// Text to filter members by.
         ///
@@ -41,7 +41,7 @@ pub enum ShardRunnerMessage {
     /// Indicates that the client is to update the shard's presence's game.
     SetGame(Option<Game>),
     /// Indicates that the client is to update the shard's presence in its
-    /// entirity.
+    /// entirety.
     SetPresence(OnlineStatus, Option<Game>),
     /// Indicates that the client is to update the shard's presence's status.
     SetStatus(OnlineStatus),

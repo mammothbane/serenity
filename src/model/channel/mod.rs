@@ -37,6 +37,13 @@ use http::AttachmentType;
 #[cfg(feature = "model")]
 use std::fmt::{Display, Formatter, Result as FmtResult};
 
+#[cfg(all(feature = "cache", feature = "model", feature = "utils"))]
+use std::str::FromStr;
+#[cfg(all(feature = "cache", feature = "model", feature = "utils"))]
+use model::misc::ChannelParseError;
+#[cfg(all(feature = "cache", feature = "model", feature = "utils"))]
+use utils::parse_channel;
+
 /// A container for any channel.
 #[derive(Clone, Debug)]
 pub enum Channel {
@@ -44,14 +51,14 @@ pub enum Channel {
     Group(Arc<RwLock<Group>>),
     /// A [text] or [voice] channel within a [`Guild`].
     ///
-    /// [`Guild`]: struct.Guild.html
+    /// [`Guild`]: ../guild/struct.Guild.html
     /// [text]: enum.ChannelType.html#variant.Text
     /// [voice]: enum.ChannelType.html#variant.Voice
     Guild(Arc<RwLock<GuildChannel>>),
     /// A private channel to another [`User`]. No other users may access the
     /// channel. For multi-user "private channels", use a group.
     ///
-    /// [`User`]: struct.User.html
+    /// [`User`]: ../user/struct.User.html
     Private(Arc<RwLock<PrivateChannel>>),
     /// A category of [`GuildChannel`]s
     ///
@@ -60,15 +67,11 @@ pub enum Channel {
 }
 
 impl Channel {
-
-    /////////////////////////////////////////////////////////////////////////
-    // Adapter for each variant
-    /////////////////////////////////////////////////////////////////////////
-
     /// Converts from `Channel` to `Option<Arc<RwLock<Group>>>`.
     ///
     /// Converts `self` into an `Option<Arc<RwLock<Group>>>`, consuming `self`,
-    /// and discarding a GuildChannel, PrivateChannel, or ChannelCategory, if any.
+    /// and discarding a `GuildChannel`, `PrivateChannel`, or `ChannelCategory`,
+    /// if any.
     ///
     /// # Examples
     ///
@@ -76,9 +79,13 @@ impl Channel {
     ///
     /// ```rust,no_run
     /// # extern crate serenity;
+    /// #
     /// # use self::serenity::model::id::ChannelId;
+    /// #
+    /// # #[cfg(feature = "model")]
     /// # fn main() {
-    /// # let channel = ChannelId(0).get().unwrap();
+    /// #     let channel = ChannelId(0).to_channel().unwrap();
+    /// #
     /// match channel.group() {
     ///     Some(group_lock) => {
     ///         if let Some(ref name) = group_lock.read().name {
@@ -89,10 +96,12 @@ impl Channel {
     ///     },
     ///     None => { println!("It's not a group!"); },
     /// }
+    /// #
     /// # }
+    /// #
+    /// # #[cfg(not(feature = "model"))]
+    /// fn main() {}
     /// ```
-
-
     pub fn group(self) -> Option<Arc<RwLock<Group>>> {
         match self {
             Channel::Group(lock) => Some(lock),
@@ -102,8 +111,9 @@ impl Channel {
 
     /// Converts from `Channel` to `Option<Arc<RwLock<GuildChannel>>>`.
     ///
-    /// Converts `self` into an `Option<Arc<RwLock<GuildChannel>>>`, consuming `self`,
-    /// and discarding a Group, PrivateChannel, or ChannelCategory, if any.
+    /// Converts `self` into an `Option<Arc<RwLock<GuildChannel>>>`, consuming
+    /// `self`, and discarding a `Group`, `PrivateChannel`, or
+    /// `ChannelCategory`, if any.
     ///
     /// # Examples
     ///
@@ -111,18 +121,25 @@ impl Channel {
     ///
     /// ```rust,no_run
     /// # extern crate serenity;
+    /// #
     /// # use self::serenity::model::id::ChannelId;
+    /// #
+    /// # #[cfg(feature = "model")]
     /// # fn main() {
-    /// let channel = ChannelId(0).get().unwrap();
+    /// #     let channel = ChannelId(0).to_channel().unwrap();
+    /// #
     /// match channel.guild() {
     ///     Some(guild_lock) => {
     ///         println!("It's a guild named {}!", guild_lock.read().name);
     ///     },
     ///     None => { println!("It's not a guild!"); },
     /// }
+    /// #
     /// # }
+    /// #
+    /// # #[cfg(not(feature = "model"))]
+    /// fn main() {}
     /// ```
-
     pub fn guild(self) -> Option<Arc<RwLock<GuildChannel>>> {
         match self {
             Channel::Guild(lock) => Some(lock),
@@ -132,8 +149,9 @@ impl Channel {
 
     /// Converts from `Channel` to `Option<Arc<RwLock<PrivateChannel>>>`.
     ///
-    /// Converts `self` into an `Option<Arc<RwLock<PrivateChannel>>>`, consuming `self`,
-    /// and discarding a Group, GuildChannel, or ChannelCategory, if any.
+    /// Converts `self` into an `Option<Arc<RwLock<PrivateChannel>>>`, consuming
+    /// `self`, and discarding a `Group`, `GuildChannel`, or `ChannelCategory`,
+    /// if any.
     ///
     /// # Examples
     ///
@@ -141,9 +159,13 @@ impl Channel {
     ///
     /// ```rust,no_run
     /// # extern crate serenity;
+    /// #
     /// # use self::serenity::model::id::ChannelId;
+    /// #
+    /// # #[cfg(feature = "model")]
     /// # fn main() {
-    /// # let channel = ChannelId(0).get().unwrap();
+    /// #     let channel = ChannelId(0).to_channel().unwrap();
+    /// #
     /// match channel.private() {
     ///     Some(private_lock) => {
     ///         let private = private_lock.read();
@@ -153,9 +175,12 @@ impl Channel {
     ///     },
     ///     None => { println!("It's not a private channel!"); },
     /// }
+    /// #
     /// # }
+    /// #
+    /// # #[cfg(not(feature = "model"))]
+    /// fn main() {}
     /// ```
-
     pub fn private(self) -> Option<Arc<RwLock<PrivateChannel>>> {
         match self {
             Channel::Private(lock) => Some(lock),
@@ -165,8 +190,9 @@ impl Channel {
 
     /// Converts from `Channel` to `Option<Arc<RwLock<ChannelCategory>>>`.
     ///
-    /// Converts `self` into an `Option<Arc<RwLock<ChannelCategory>>>`, consuming `self`,
-    /// and discarding a Group, GuildChannel, or PrivateChannel, if any.
+    /// Converts `self` into an `Option<Arc<RwLock<ChannelCategory>>>`,
+    /// consuming `self`, and discarding a `Group`, `GuildChannel`, or
+    /// `PrivateChannel`, if any.
     ///
     /// # Examples
     ///
@@ -174,18 +200,25 @@ impl Channel {
     ///
     /// ```rust,no_run
     /// # extern crate serenity;
+    /// #
     /// # use self::serenity::model::id::ChannelId;
+    /// #
+    /// # #[cfg(feature = "model")]
     /// # fn main() {
-    /// # let channel = ChannelId(0).get().unwrap();
+    /// # let channel = ChannelId(0).to_channel().unwrap();
+    /// #
     /// match channel.category() {
     ///     Some(category_lock) => {
     ///         println!("It's a category named {}!", category_lock.read().name);
     ///     },
     ///     None => { println!("It's not a category!"); },
     /// }
+    /// #
     /// # }
+    /// #
+    /// # #[cfg(not(feature = "model"))]
+    /// fn main() {}
     /// ```
-
     pub fn category(self) -> Option<Arc<RwLock<ChannelCategory>>> {
         match self {
             Channel::Category(lock) => Some(lock),
@@ -201,10 +234,10 @@ impl Channel {
     /// Requires the [Add Reactions] permission, _if_ the current user is the
     /// first user to perform a react with a certain emoji.
     ///
-    /// [`Emoji`]: struct.Emoji.html
+    /// [`Emoji`]: ../guild/struct.Emoji.html
     /// [`Message`]: struct.Message.html
     /// [`Message::react`]: struct.Message.html#method.react
-    /// [Add Reactions]: permissions/constant.ADD_REACTIONS.html
+    /// [Add Reactions]: ../permissions/struct.Permissions.html#associatedconstant.ADD_REACTIONS
     #[cfg(feature = "model")]
     #[deprecated(since = "0.4.2", note = "Use the inner channel's method")]
     #[inline]
@@ -248,7 +281,7 @@ impl Channel {
     ///
     /// [`Message`]: struct.Message.html
     /// [`Message::delete`]: struct.Message.html#method.delete
-    /// [Manage Messages]: permissions/constant.MANAGE_MESSAGES.html
+    /// [Manage Messages]: ../permissions/struct.Permissions.html#associatedconstant.MANAGE_MESSAGES
     #[cfg(feature = "model")]
     #[deprecated(since = "0.4.2", note = "Use the inner channel's method")]
     #[inline]
@@ -262,7 +295,7 @@ impl Channel {
     /// user did not perform the reaction.
     ///
     /// [`Reaction`]: struct.Reaction.html
-    /// [Manage Messages]: permissions/constant.MANAGE_MESSAGES.html
+    /// [Manage Messages]: ../permissions/struct.Permissions.html#associatedconstant.MANAGE_MESSAGES
     #[cfg(feature = "model")]
     #[deprecated(since = "0.4.2", note = "Use the inner channel's method")]
     #[inline]
@@ -291,10 +324,10 @@ impl Channel {
     /// is over the [`the limit`], containing the number of unicode code points
     /// over the limit.
     ///
-    /// [`ModelError::MessageTooLong`]: enum.ModelError.html#variant.MessageTooLong
-    /// [`EditMessage`]: ../builder/struct.EditMessage.html
+    /// [`ModelError::MessageTooLong`]: ../error/enum.Error.html#variant.MessageTooLong
+    /// [`EditMessage`]: ../../builder/struct.EditMessage.html
     /// [`Message`]: struct.Message.html
-    /// [`the limit`]: ../builder/struct.EditMessage.html#method.content
+    /// [`the limit`]: ../../builder/struct.EditMessage.html#method.content
     #[cfg(feature = "model")]
     #[deprecated(since = "0.4.2", note = "Use the inner channel's method")]
     #[inline]
@@ -304,11 +337,7 @@ impl Channel {
     }
 
     /// Determines if the channel is NSFW.
-    ///
-    /// Refer to [`utils::is_nsfw`] for more details.
-    ///
-    /// [`utils::is_nsfw`]: ../../utils/fn.is_nsfw.html
-    #[cfg(all(feature = "model", feature = "utils"))]
+    #[cfg(feature = "model")]
     #[inline]
     pub fn is_nsfw(&self) -> bool {
         match *self {
@@ -322,7 +351,7 @@ impl Channel {
     ///
     /// Requires the [Read Message History] permission.
     ///
-    /// [Read Message History]: permissions/constant.READ_MESSAGE_HISTORY.html
+    /// [Read Message History]: ../permissions/struct.Permissions.html#associatedconstant.READ_MESSAGE_HISTORY
     #[cfg(feature = "model")]
     #[deprecated(since = "0.4.2", note = "Use the inner channel's method")]
     #[inline]
@@ -345,7 +374,7 @@ impl Channel {
     /// let _messages = channel.messages(|g| g.after(id).limit(100));
     /// ```
     ///
-    /// [Read Message History]: permissions/constant.READ_MESSAGE_HISTORY.html
+    /// [Read Message History]: ../permissions/struct.Permissions.html#associatedconstant.READ_MESSAGE_HISTORY
     #[cfg(feature = "model")]
     #[deprecated(since = "0.4.2", note = "Use the inner channel's method")]
     #[inline]
@@ -366,10 +395,10 @@ impl Channel {
     ///
     /// **Note**: Requires the [Read Message History] permission.
     ///
-    /// [`Emoji`]: struct.Emoji.html
+    /// [`Emoji`]: ../guild/struct.Emoji.html
     /// [`Message`]: struct.Message.html
-    /// [`User`]: struct.User.html
-    /// [Read Message History]: permissions/constant.READ_MESSAGE_HISTORY.html
+    /// [`User`]: ../user/struct.User.html
+    /// [Read Message History]: ../permissions/struct.Permissions.html#associatedconstant.READ_MESSAGE_HISTORY
     #[cfg(feature = "model")]
     #[deprecated(since = "0.4.2", note = "Use the inner channel's method")]
     #[inline]
@@ -407,8 +436,8 @@ impl Channel {
     /// is over the above limit, containing the number of unicode code points
     /// over the limit.
     ///
-    /// [`ChannelId`]: struct.ChannelId.html
-    /// [`ModelError::MessageTooLong`]: enum.ModelError.html#variant.MessageTooLong
+    /// [`ChannelId`]: ../id/struct.ChannelId.html
+    /// [`ModelError::MessageTooLong`]: ../error/enum.Error.html#variant.MessageTooLong
     #[cfg(feature = "model")]
     #[deprecated(since = "0.4.2", note = "Use the inner channel's method")]
     #[inline]
@@ -428,10 +457,10 @@ impl Channel {
     /// [`ClientError::MessageTooLong`] will be returned, containing the number
     /// of unicode code points over the limit.
     ///
-    /// [`ChannelId::send_files`]: struct.ChannelId.html#method.send_files
-    /// [`ClientError::MessageTooLong`]: ../client/enum.ClientError.html#variant.MessageTooLong
-    /// [Attach Files]: permissions/constant.ATTACH_FILES.html
-    /// [Send Messages]: permissions/constant.SEND_MESSAGES.html
+    /// [`ChannelId::send_files`]: ../id/struct.ChannelId.html#method.send_files
+    /// [`ClientError::MessageTooLong`]: ../../client/enum.ClientError.html#variant.MessageTooLong
+    /// [Attach Files]: ../permissions/struct.Permissions.html#associatedconstant.ATTACH_FILES
+    /// [Send Messages]: ../permissions/struct.Permissions.html#associatedconstant.SEND_MESSAGES
     #[cfg(feature = "model")]
     #[deprecated(since = "0.4.2", note = "Use the inner channel's method")]
     #[inline]
@@ -456,9 +485,9 @@ impl Channel {
     /// over the limit.
     ///
     /// [`Channel`]: enum.Channel.html
-    /// [`ModelError::MessageTooLong`]: enum.ModelError.html#variant.MessageTooLong
-    /// [`CreateMessage`]: ../builder/struct.CreateMessage.html
-    /// [Send Messages]: permissions/constant.SEND_MESSAGES.html
+    /// [`ModelError::MessageTooLong`]: ../error/enum.Error.html#variant.MessageTooLong
+    /// [`CreateMessage`]: ../../builder/struct.CreateMessage.html
+    /// [Send Messages]: ../permissions/struct.Permissions.html#associatedconstant.SEND_MESSAGES
     #[cfg(feature = "model")]
     #[deprecated(since = "0.4.2", note = "Use the inner channel's method")]
     #[inline]
@@ -472,7 +501,7 @@ impl Channel {
     /// Requires the [Manage Messages] permission.
     ///
     /// [`Message`]: struct.Message.html
-    /// [Manage Messages]: permissions/constant.MANAGE_MESSAGES.html
+    /// [Manage Messages]: ../permissions/struct.Permissions.html#associatedconstant.MANAGE_MESSAGES
     #[cfg(feature = "model")]
     #[deprecated(since = "0.4.2", note = "Use the inner channel's method")]
     #[inline]
@@ -679,4 +708,109 @@ pub enum PermissionOverwriteType {
     Member(UserId),
     /// A role which is having its permission overwrites edited.
     Role(RoleId),
+}
+
+#[cfg(test)]
+mod test {
+    #[cfg(all(feature = "model", feature = "utils"))]
+    mod model_utils {
+        use model::prelude::*;
+        use parking_lot::RwLock;
+        use std::collections::HashMap;
+        use std::sync::Arc;
+
+        fn group() -> Group {
+            Group {
+                channel_id: ChannelId(1),
+                icon: None,
+                last_message_id: None,
+                last_pin_timestamp: None,
+                name: None,
+                owner_id: UserId(2),
+                recipients: HashMap::new(),
+            }
+        }
+
+        fn guild_channel() -> GuildChannel {
+            GuildChannel {
+                id: ChannelId(1),
+                bitrate: None,
+                category_id: None,
+                guild_id: GuildId(2),
+                kind: ChannelType::Text,
+                last_message_id: None,
+                last_pin_timestamp: None,
+                name: "nsfw-stuff".to_string(),
+                permission_overwrites: vec![],
+                position: 0,
+                topic: None,
+                user_limit: None,
+                nsfw: false,
+            }
+        }
+
+        fn private_channel() -> PrivateChannel {
+            PrivateChannel {
+                id: ChannelId(1),
+                last_message_id: None,
+                last_pin_timestamp: None,
+                kind: ChannelType::Private,
+                recipient: Arc::new(RwLock::new(User {
+                    id: UserId(2),
+                    avatar: None,
+                    bot: false,
+                    discriminator: 1,
+                    name: "ab".to_string(),
+                })),
+            }
+        }
+
+        #[test]
+        fn nsfw_checks() {
+            let mut channel = guild_channel();
+            assert!(!channel.is_nsfw());
+            channel.kind = ChannelType::Voice;
+            assert!(!channel.is_nsfw());
+
+            channel.kind = ChannelType::Text;
+            channel.name = "nsfw-".to_string();
+            assert!(!channel.is_nsfw());
+
+            channel.name = "nsfw".to_string();
+            assert!(!channel.is_nsfw());
+            channel.kind = ChannelType::Voice;
+            assert!(!channel.is_nsfw());
+            channel.kind = ChannelType::Text;
+
+            channel.name = "nsf".to_string();
+            channel.nsfw = true;
+            assert!(channel.is_nsfw());
+            channel.nsfw = false;
+            assert!(!channel.is_nsfw());
+
+            let channel = Channel::Guild(Arc::new(RwLock::new(channel)));
+            assert!(!channel.is_nsfw());
+
+            let group = group();
+            assert!(!group.is_nsfw());
+
+            let private_channel = private_channel();
+            assert!(!private_channel.is_nsfw());
+        }
+    }
+}
+
+#[cfg(all(feature = "cache", feature = "model", feature = "utils"))]
+impl FromStr for Channel {
+    type Err = ChannelParseError;
+
+    fn from_str(s: &str) -> StdResult<Self, Self::Err> {
+        match parse_channel(s) {
+            Some(x) => match ChannelId(x).to_channel_cached() {
+                Some(channel) => Ok(channel),
+                _ => Err(ChannelParseError::NotPresentInCache),
+            },
+            _ => Err(ChannelParseError::InvalidChannel),
+        }
+    }
 }

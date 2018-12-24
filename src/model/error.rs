@@ -79,9 +79,9 @@ pub enum ModelError {
     /// A [guild][`Guild`] could not be found by the given
     /// [Id][`GuildId`] in the [`Cache`].
     ///
-    /// [`Guild`]: ../model/guild/struct.Guild.html
-    /// [`GuildId`]: ../model/id/struct.GuildId.html
-    /// [`Cache`]: ../cache/struct.Cache.html
+    /// [`Guild`]: ../guild/struct.Guild.html
+    /// [`GuildId`]: ../id/struct.GuildId.html
+    /// [`Cache`]: ../../cache/struct.Cache.html
     #[fail(display = "Guild not found in the cache")]
     GuildNotFound,
 
@@ -100,19 +100,19 @@ pub enum ModelError {
     ///
     /// The provided [`Permission`]s is the set of permissions required.
     ///
-    /// [`Permission`]: ../model/permissions/struct.Permissions.html
+    /// [`Permission`]: ../permissions/struct.Permissions.html
     #[fail(display = "Invalid permissions")]
     InvalidPermissions(Permissions),
 
     /// The [current user] could not perform an action.
     ///
-    /// [current user]: ../model/user/struct.CurrentUser.html
+    /// [current user]: ../user/struct.CurrentUser.html
     #[fail(display = "The current user can not perform the action")]
     InvalidUser,
 
     /// The item is missing from the [`Cache`], so the action could not continue.
     ///
-    /// [`Cache`]: ../cache/struct.Cache.html
+    /// [`Cache`]: ../../cache/struct.Cache.html
     #[fail(display = "The required item is missing from the cache")]
     ItemMissing,
 
@@ -120,7 +120,7 @@ pub enum ModelError {
     ///
     /// The number of bytes overflowed is included.
     ///
-    /// [`Message`]: ../model/channel/struct.Message.html
+    /// [`Message`]: ../channel/struct.Message.html
     #[fail(display = "Message too large")]
     MessageTooLong(u64),
 
