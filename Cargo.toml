@@ -79,7 +79,7 @@ version = "~0.3"
 default-features = false
 features = ["sync-ssl"]
 optional = true
-version = "0.0.3"
+git = "https://github.com/mammothbane/rust-websocket"
 
 [features]
 default = [
