@@ -48,7 +48,7 @@ use self::bridge::gateway::{ShardManager, ShardManagerMonitor, ShardManagerOptio
 use std::sync::Arc;
 use threadpool::ThreadPool;
 use typemap::ShareMap;
-use log::{error, debug, info};
+use log::debug;
 
 #[cfg(feature = "framework")]
 use crate::framework::Framework;

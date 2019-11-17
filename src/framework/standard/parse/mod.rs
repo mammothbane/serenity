@@ -1,13 +1,16 @@
-use super::*;
+use std::borrow::Cow;
+
+use uwl::{StrExt, UnicodeStream};
+
 use crate::client::Context;
 use crate::model::channel::Message;
-use uwl::{StrExt, UnicodeStream};
+
+use super::*;
+
+use self::map::{CommandMap, GroupMap, ParseMap};
 
 pub mod map;
 
-use map::{CommandMap, GroupMap, ParseMap};
-
-use std::borrow::Cow;
 
 #[inline]
 fn to_lowercase<'a>(config: &Configuration, s: &'a str) -> Cow<'a, str> {
@@ -123,7 +126,7 @@ fn check_discrepancy(
     msg: &Message,
     config: &Configuration,
     options: &impl CommonOptions,
-) -> Result<(), DispatchError> {
+) -> StdResult<(), DispatchError> {
     if options.owners_only() && !config.owners.contains(&msg.author.id) {
         return Err(DispatchError::OnlyForOwners);
     }
@@ -203,7 +206,7 @@ fn parse_cmd(
     msg: &Message,
     config: &Configuration,
     map: &CommandMap,
-) -> Result<&'static Command, ParseError> {
+) -> StdResult<&'static Command, ParseError> {
     let (n, r) = try_parse(stream, map, config.by_space, |s| {
         to_lowercase(config, s).into_owned()
     });
@@ -240,7 +243,7 @@ fn parse_group(
     msg: &Message,
     config: &Configuration,
     map: &GroupMap,
-) -> Result<(&'static CommandGroup, Arc<CommandMap>), ParseError> {
+) -> StdResult<(&'static CommandGroup, Arc<CommandMap>), ParseError> {
     let (n, o) = try_parse(stream, map, config.by_space, ToString::to_string);
 
     if let Some((group, map, commands)) = o {
@@ -273,7 +276,7 @@ fn handle_command(
     config: &Configuration,
     map: &CommandMap,
     group: &'static CommandGroup,
-) -> Result<Invoke, ParseError> {
+) -> StdResult<Invoke, ParseError> {
     match parse_cmd(stream, ctx, msg, config, map) {
         Ok(command) => Ok(Invoke::Command { group, command }),
         Err(err) => match group.options.default_command {
@@ -290,7 +293,7 @@ fn handle_group(
     msg: &Message,
     config: &Configuration,
     map: &GroupMap,
-) -> Result<Invoke, ParseError> {
+) -> StdResult<Invoke, ParseError> {
     parse_group(stream, ctx, msg, config, map)
         .and_then(|(group, map)| handle_command(stream, ctx, msg, config, &map, group))
 }
@@ -324,7 +327,7 @@ pub fn command(
     groups: &[(&'static CommandGroup, Map)],
     config: &Configuration,
     help_was_set: Option<&[&'static str]>,
-) -> Result<Invoke, ParseError> {
+) -> StdResult<Invoke, ParseError> {
     // Precedence is taken over commands named as one of the help names.
     if let Some(names) = help_was_set {
         for name in names {

@@ -67,7 +67,6 @@ use crate::{
     client::Context,
     framework::standard::CommonOptions,
     model::channel::Message,
-    Error,
     http::Http,
     model::id::{ChannelId, UserId},
     utils::Colour,
@@ -82,6 +81,8 @@ use std::{
 };
 #[cfg(all(feature = "cache", feature = "http"))]
 use log::warn;
+
+use crate::internal::prelude::*;
 
 /// Macro to format a command according to a `HelpBehaviour` or
 /// continue to the next command-name upon hiding.
@@ -561,7 +562,7 @@ fn fetch_single_command<'a>(
     help_options: &'a HelpOptions,
     msg: &Message,
     owners: &HashSet<UserId>,
-) -> Result<CustomisedHelpData<'a>, Vec<SuggestedCommandName>> {
+) -> StdResult<CustomisedHelpData<'a>, Vec<SuggestedCommandName>> {
     let mut similar_commands: Vec<SuggestedCommandName> = Vec::new();
     let cache = cache.as_ref();
     let mut name = name.to_string();

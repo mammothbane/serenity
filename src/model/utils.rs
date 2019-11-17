@@ -1,12 +1,19 @@
-use parking_lot::RwLock;
-use serde::de::Error as DeError;
-use serde::de::MapAccess;
-use serde::ser::{SerializeSeq, Serialize, Serializer};
 use std::{
     collections::HashMap,
     hash::Hash,
-    sync::Arc
+    sync::Arc,
+    fmt::{Formatter, Result as FmtResult},
 };
+
+use parking_lot::RwLock;
+
+use serde::de::{
+    MapAccess,
+    Visitor,
+    Error as DeError,
+};
+use serde::ser::{SerializeSeq, Serialize, Serializer};
+use serde::{Deserialize, Deserializer};
 
 use crate::internal::prelude::*;
 
@@ -14,13 +21,13 @@ use crate::internal::prelude::*;
 use super::permissions::Permissions;
 #[cfg(all(feature = "cache", feature = "model"))]
 use crate::cache::CacheRwLock;
-use serde::{Deserialize, Deserializer};
-use model::{
+use crate::model::{
     id::{
         EmojiId,
         ChannelId,
         RoleId,
         UserId,
+        GuildId,
     },
     channel::{
         Channel,

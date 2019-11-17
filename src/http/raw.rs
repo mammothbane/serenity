@@ -1,4 +1,13 @@
-use crate::constants;
+use std::{
+    collections::{BTreeMap, HashMap},
+    io::ErrorKind as IoErrorKind,
+    sync::Arc,
+};
+
+use parking_lot::Mutex;
+use serde::de::DeserializeOwned;
+use serde_json::json;
+use log::{debug, trace};
 use reqwest::{
     Client,
     header::{AUTHORIZATION, USER_AGENT, CONTENT_TYPE, HeaderValue, HeaderMap as Headers},
@@ -7,8 +16,11 @@ use reqwest::{
     StatusCode,
     Url,
 };
+
+use crate::constants;
 use crate::internal::prelude::*;
 use crate::model::prelude::*;
+
 use super::{
     ratelimiting::{perform, RateLimit},
     request::Request,
@@ -17,15 +29,7 @@ use super::{
     GuildPagination,
     HttpError,
 };
-use parking_lot::Mutex;
-use serde::de::DeserializeOwned;
-use serde_json::json;
-use log::{debug, trace};
-use std::{
-    collections::{BTreeMap, HashMap},
-    io::ErrorKind as IoErrorKind,
-    sync::Arc,
-};
+
 
 pub struct Http {
     client: Client,
@@ -1727,7 +1731,7 @@ impl Http {
         if response.status().is_success() {
             Ok(response)
         } else {
-            Err(Error::Http(Box::new(HttpError::UnsuccessfulRequest(response.into()))))
+            Err(SerenityError::Http(Box::new(HttpError::UnsuccessfulRequest(response.into()))).into())
         }
     }
 
@@ -1772,7 +1776,7 @@ impl Http {
         debug!("Expected {}, got {}", expected, response.status());
         trace!("Unsuccessful response: {:?}", response);
 
-        Err(Error::Http(Box::new(HttpError::UnsuccessfulRequest(response.into()))))
+        Err(SerenityError::Http(Box::new(HttpError::UnsuccessfulRequest(response.into()))).into())
     }
 }
 

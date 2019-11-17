@@ -54,9 +54,6 @@
 //! [gateway docs]: gateway/index.html
 #![doc(html_root_url = "https://docs.rs/serenity/*")]
 #![deny(rust_2018_idioms)]
-#![allow(unused_import)] // TODO: REMOVE
-
-#![feature(custom_attribute)]
 
 #[macro_use]
 extern crate serde;

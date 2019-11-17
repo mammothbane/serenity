@@ -1,8 +1,3 @@
-use crate::gateway::Shard;
-use crate::internal::prelude::*;
-use crate::CacheAndHttp;
-use parking_lot::Mutex;
-use parking_lot::RwLock;
 use std::{
     collections::{HashMap, VecDeque},
     sync::{
@@ -15,6 +10,24 @@ use std::{
     thread,
     time::{Duration, Instant}
 };
+
+use threadpool::ThreadPool;
+use typemap::ShareMap;
+use log::{info, warn};
+use parking_lot::Mutex;
+use parking_lot::RwLock;
+
+use crate::gateway::Shard;
+use crate::internal::prelude::*;
+use crate::CacheAndHttp;
+use crate::gateway::ConnectionStage;
+
+#[cfg(feature = "voice")]
+use crate::client::bridge::voice::ClientVoiceManager;
+
+#[cfg(feature = "framework")]
+use crate::framework::Framework;
+
 use super::super::super::{EventHandler, RawEventHandler};
 use super::{
     ShardId,
@@ -24,16 +37,6 @@ use super::{
     ShardRunnerInfo,
     ShardRunnerOptions,
 };
-use threadpool::ThreadPool;
-use typemap::ShareMap;
-use crate::gateway::ConnectionStage;
-use log::{info, warn};
-
-#[cfg(feature = "voice")]
-use crate::client::bridge::voice::ClientVoiceManager;
-#[cfg(feature = "framework")]
-use crate::framework::Framework;
-use internal::prelude::*;
 
 const WAIT_BETWEEN_BOOTS_IN_SECONDS: u64 = 5;
 

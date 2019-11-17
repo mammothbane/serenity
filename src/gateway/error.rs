@@ -1,4 +1,5 @@
 use tungstenite::protocol::CloseFrame;
+use failure::Fail;
 
 /// An error that occurred while attempting to deal with the gateway.
 ///
@@ -13,7 +14,7 @@ pub enum GatewayError {
     /// The connection closed, potentially uncleanly.
     #[fail(display = "Connection closed")]
     Closed(Option<CloseFrame<'static>>),
-    
+
     /// Expected a Hello during a handshake
     #[fail(display = "Expected a Hello")]
     ExpectedHello,
@@ -65,6 +66,4 @@ pub enum GatewayError {
     /// Failed to reconnect after a number of attempts.
     #[fail(display = "Failed to Reconnect")]
     ReconnectFailure,
-    #[doc(hidden)]
-    __Nonexhaustive,
 }

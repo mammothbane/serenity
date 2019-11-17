@@ -1,5 +1,7 @@
 //! Error enum definition wrapping potential model implementation errors.
 
+use failure::Fail;
+
 use super::Permissions;
 
 /// An error returned from the [`model`] module.
@@ -84,7 +86,7 @@ pub enum ModelError {
     /// [`Cache`]: ../../cache/struct.Cache.html
     #[fail(display = "Guild not found in the cache")]
     GuildNotFound,
-    
+
     /// An indication that a [role][`Role`] could not be found by
     /// [Id][`RoleId`] in the [`Cache`].
     ///
@@ -93,7 +95,7 @@ pub enum ModelError {
     /// [`Cache`]: ../../cache/struct.Cache.html
     #[fail(display = "role couldn't be found by id in cache")]
     RoleNotFound,
-    
+
     /// Indicates that there are hierarchy problems restricting an action.
     ///
     /// For example, when banning a user, if the other user has a role with an
@@ -137,10 +139,10 @@ pub enum ModelError {
     /// bot user, which is disallowed by the API.
     #[fail(display = "Attempted to message another bot user")]
     MessagingBot,
+
     /// An indicator that the [`ChannelType`] cannot perform an action.
     ///
     /// [`ChannelType`]: ../channel/enum.ChannelType.html
+    #[fail(display = "invalid channel type")]
     InvalidChannelType,
-    #[doc(hidden)]
-    __Nonexhaustive,
 }

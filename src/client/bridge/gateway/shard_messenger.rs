@@ -1,9 +1,12 @@
+use std::sync::mpsc::Sender;
+
+use tungstenite::Message;
+
 use crate::gateway::InterMessage;
 use crate::model::prelude::*;
+use crate::internal::prelude::*;
+
 use super::{ShardClientMessage, ShardRunnerMessage};
-use std::sync::mpsc::Sender;
-use tungstenite::Message;
-use internal::prelude::*;
 
 /// A lightweight wrapper around an mpsc sender.
 ///
@@ -255,7 +258,7 @@ impl ShardMessenger {
 
     #[inline]
     fn send(&self, msg: ShardRunnerMessage)
-        -> Result<(), SendError<InterMessage>> {
-        self.tx.send(InterMessage::Client(Box::new(ShardClientMessage::Runner(msg))))
+        -> Result<()> {
+        self.tx.send(InterMessage::Client(Box::new(ShardClientMessage::Runner(msg)))).map_err(Error::from)
     }
 }

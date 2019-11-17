@@ -1,8 +1,3 @@
-use crate::gateway::InterMessage;
-use crate::internal::prelude::*;
-use crate::CacheAndHttp;
-use parking_lot::Mutex;
-use parking_lot::RwLock;
 use std::{
     collections::{HashMap, VecDeque},
     sync::{
@@ -12,6 +7,21 @@ use std::{
     thread,
     time::Duration
 };
+
+use parking_lot::Mutex;
+use parking_lot::RwLock;
+use threadpool::ThreadPool;
+use typemap::ShareMap;
+use log::{info, warn};
+
+use crate::gateway::InterMessage;
+use crate::CacheAndHttp;
+
+#[cfg(feature = "framework")]
+use crate::framework::Framework;
+#[cfg(feature = "voice")]
+use crate::client::bridge::voice::ClientVoiceManager;
+
 use super::super::super::{EventHandler, RawEventHandler};
 use super::{
     ShardClientMessage,
@@ -22,14 +32,6 @@ use super::{
     ShardQueuerMessage,
     ShardRunnerInfo,
 };
-use threadpool::ThreadPool;
-use typemap::ShareMap;
-use log::{info, warn};
-
-#[cfg(feature = "framework")]
-use crate::framework::Framework;
-#[cfg(feature = "voice")]
-use crate::client::bridge::voice::ClientVoiceManager;
 
 /// A manager for handling the status of shards by starting them, restarting
 /// them, and stopping them when required.

@@ -1,11 +1,3 @@
-use crate::gateway::{InterMessage, ReconnectType, Shard, ShardAction};
-use crate::internal::prelude::*;
-use crate::internal::ws_impl::{ReceiverExt, SenderExt};
-use crate::model::event::{Event, GatewayEvent};
-use crate::CacheAndHttp;
-use parking_lot::Mutex;
-use parking_lot::RwLock;
-use serde::Deserialize;
 use std::{
     borrow::Cow,
     sync::{
@@ -18,22 +10,35 @@ use std::{
         Arc,
     },
 };
-use super::super::super::dispatch::{DispatchEvent, dispatch};
-use super::super::super::{EventHandler, RawEventHandler};
-use super::event::{ClientEvent, ShardStageUpdateEvent};
-use super::{ShardClientMessage, ShardId, ShardManagerMessage, ShardRunnerMessage};
+
+use parking_lot::Mutex;
+use parking_lot::RwLock;
+use serde::Deserialize;
 use threadpool::ThreadPool;
 use tungstenite::{
     error::Error as TungsteniteError,
     protocol::frame::CloseFrame,
 };
 use typemap::ShareMap;
+use log::{error, debug, warn};
+
+use crate::gateway::{InterMessage, ReconnectType, Shard, ShardAction};
+use crate::internal::prelude::*;
+use crate::internal::ws_impl::{ReceiverExt, SenderExt};
+use crate::model::event::{Event, GatewayEvent};
+use crate::CacheAndHttp;
 
 #[cfg(feature = "framework")]
 use crate::framework::Framework;
+
+use super::super::super::dispatch::{DispatchEvent, dispatch};
+use super::super::super::{EventHandler, RawEventHandler};
+use super::event::{ClientEvent, ShardStageUpdateEvent};
+use super::{ShardClientMessage, ShardId, ShardManagerMessage, ShardRunnerMessage};
+
 #[cfg(feature = "voice")]
 use super::super::voice::ClientVoiceManager;
-use log::{error, debug, warn};
+
 
 /// A runner for managing a [`Shard`] and its respective WebSocket client.
 ///
@@ -422,51 +427,54 @@ impl<H: EventHandler + Send + Sync + 'static,
     /// Returns a received event, as well as whether reading the potentially
     /// present event was successful.
     fn recv_event(&mut self) -> (Option<Event>, Option<ShardAction>, bool) {
-        let gw_event = match self.shard.client.recv_json().map_err(|e| e.downcast::<WebSocketError>()) {
+        let gw_event = match self.shard.client.recv_json().map_err(Error::from) {
             Ok(Some(value)) => {
                 GatewayEvent::deserialize(value).map(Some).map_err(From::from)
             },
             Ok(None) => Ok(None),
-            Err(Error::Tungstenite(TungsteniteError::Io(_))) => {
-                // Check that an amount of time at least double the
-                // heartbeat_interval has passed.
-                //
-                // If not, continue on trying to receive messages.
-                //
-                // If it has, attempt to auto-reconnect.
-                {
-                    let last = self.shard.last_heartbeat_ack();
-                    let interval = self.shard.heartbeat_interval();
+            Err(e) => match e.downcast() {
+                Ok(SerenityError::Tungstenite(TungsteniteError::Io(_))) => {
+                    // Check that an amount of time at least double the
+                    // heartbeat_interval has passed.
+                    //
+                    // If not, continue on trying to receive messages.
+                    //
+                    // If it has, attempt to auto-reconnect.
+                    {
+                        let last = self.shard.last_heartbeat_ack();
+                        let interval = self.shard.heartbeat_interval();
 
-                    if let (Some(last_heartbeat_ack), Some(interval)) = (last, interval) {
-                        let seconds_passed = last_heartbeat_ack.elapsed().as_secs();
-                        let interval_in_secs = interval / 1000;
+                        if let (Some(last_heartbeat_ack), Some(interval)) = (last, interval) {
+                            let seconds_passed = last_heartbeat_ack.elapsed().as_secs();
+                            let interval_in_secs = interval / 1000;
 
-                        if seconds_passed <= interval_in_secs * 2 {
+                            if seconds_passed <= interval_in_secs * 2 {
+                                return (None, None, true);
+                            }
+                        } else {
                             return (None, None, true);
                         }
-                    } else {
-                        return (None, None, true);
                     }
-                }
 
-                debug!("Attempting to auto-reconnect");
+                    debug!("Attempting to auto-reconnect");
 
-                match self.shard.reconnection_type() {
-                    ReconnectType::Reidentify => return (None, None, false),
-                    ReconnectType::Resume => {
-                        if let Err(why) = self.shard.resume() {
-                            warn!("Failed to resume: {:?}", why);
+                    match self.shard.reconnection_type() {
+                        ReconnectType::Reidentify => return (None, None, false),
+                        ReconnectType::Resume => {
+                            if let Err(why) = self.shard.resume() {
+                                warn!("Failed to resume: {:?}", why);
 
-                            return (None, None, false);
-                        }
-                    },
-                    ReconnectType::__Nonexhaustive => unreachable!(),
-                }
+                                return (None, None, false);
+                            }
+                        },
+                        ReconnectType::__Nonexhaustive => unreachable!(),
+                    }
 
-                return (None, None, true);
-            },
-            Err(why) => Err(why),
+                    return (None, None, true);
+                },
+                Ok(why) => Err(why.into()),
+                Err(why) => Err(why.into()),
+            }
         };
 
         let event = match gw_event {

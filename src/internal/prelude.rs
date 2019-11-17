@@ -6,12 +6,9 @@
 
 pub(crate) type JsonMap = Map<String, Value>;
 
-pub use crate::error::Error;
 pub use serde_json::{Map, Number, Value};
-pub use std::result::Result as StdResult;
 pub(crate) use failure::Error;
-pub(crate) use error::SerenityError;
-pub(crate) use serde_json::{Map, Number, Value};
+pub(crate) use crate::error::SerenityError;
 
 pub(crate) type Result<T> = ::std::result::Result<T, Error>;
 pub(crate) type StdResult<T, E> = ::std::result::Result<T, E>;

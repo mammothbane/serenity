@@ -1,14 +1,25 @@
+#[cfg(feature = "cache")]
+use std::sync::Arc;
+
+#[cfg(feature = "model")]
+use std::fmt::{
+    Display,
+    Formatter,
+    Result as FmtResult
+};
+
+use chrono::{DateTime, FixedOffset};
+#[cfg(feature = "cache")]
+use parking_lot::RwLock;
+
+use crate::model::prelude::*;
+
 #[cfg(feature = "http")]
 use crate::http::CacheHttp;
-use chrono::{DateTime, FixedOffset};
-use crate::model::prelude::*;
 
 #[cfg(all(feature = "cache", feature = "model"))]
 use crate::cache::CacheRwLock;
-#[cfg(feature = "cache")]
-use parking_lot::RwLock;
-#[cfg(feature = "cache")]
-use std::sync::Arc;
+
 #[cfg(feature = "model")]
 use crate::builder::{
     CreateInvite,
@@ -16,20 +27,19 @@ use crate::builder::{
     EditMessage,
     GetMessages
 };
+
 #[cfg(feature = "model")]
 use crate::http::AttachmentType;
+
 #[cfg(all(feature = "cache", feature = "model"))]
 use crate::internal::prelude::*;
-#[cfg(feature = "model")]
-use std::fmt::{
-    Display,
-    Formatter,
-    Result as FmtResult
-};
+
 #[cfg(all(feature = "model", feature = "utils"))]
 use crate::utils as serenity_utils;
+
 #[cfg(all(feature = "model", feature = "builder"))]
 use crate::builder::EditChannel;
+
 #[cfg(feature = "http")]
 use crate::http::Http;
 
@@ -706,9 +716,9 @@ impl GuildChannel {
     #[cfg(feature = "cache")]
     fn _permissions_for_role(&self, cache: impl AsRef<CacheRwLock>, role_id: RoleId) -> Result<Permissions> {
         self.guild(&cache)
-            .ok_or(Error::Model(ModelError::GuildNotFound))?
+            .ok_or(ModelError::GuildNotFound)?
             .read().role_permissions_in(self.id, role_id)
-            .ok_or(Error::Model(ModelError::GuildNotFound))
+            .ok_or(ModelError::GuildNotFound.into())
     }
 
     /// Pins a [`Message`] to the channel.

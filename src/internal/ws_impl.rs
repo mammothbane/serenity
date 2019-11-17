@@ -142,9 +142,9 @@ pub(crate) fn create_rustls_client(url: Url) -> Result<WsClient> {
     let session = rustls::ClientSession::new(&Arc::new(config), dns_name);
 
     let host = url.host()
-        .ok_or_else(|| Error::Url("No host name in the URL.".into()))?;
+        .ok_or_else(|| SerenityError::Url("No host name in the URL.".into()))?;
     let port = url.port_or_known_default()
-        .ok_or_else(|| Error::Url("No port number in the URL.".into()))?;
+        .ok_or_else(|| SerenityError::Url("No port number in the URL.".into()))?;
     // We need these to ensure the lifetime is long enough,
     // variables that would live inside the `match` would not live long enough.
     let addr;

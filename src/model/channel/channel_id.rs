@@ -1,11 +1,17 @@
-#[cfg(feature = "http")]
-use crate::http::CacheHttp;
-use crate::{internal::RwLockExt, model::prelude::*};
-
 #[cfg(feature = "model")]
 use std::borrow::Cow;
 #[cfg(feature = "model")]
 use std::fmt::Write as FmtWrite;
+
+#[cfg(all(feature = "cache", feature = "model"))]
+use parking_lot::RwLock;
+#[cfg(all(feature = "http", feature = "model"))]
+use serde_json::json;
+
+#[cfg(feature = "http")]
+use crate::http::CacheHttp;
+use crate::{internal::RwLockExt, model::prelude::*};
+
 #[cfg(feature = "model")]
 use crate::builder::{
     CreateMessage,
@@ -15,16 +21,12 @@ use crate::builder::{
 };
 #[cfg(all(feature = "cache", feature = "model"))]
 use crate::cache:: {Cache, CacheRwLock};
-#[cfg(all(feature = "cache", feature = "model"))]
-use parking_lot::RwLock;
 #[cfg(feature = "model")]
 use crate::http::AttachmentType;
 #[cfg(feature = "model")]
 use crate::utils;
 #[cfg(feature = "http")]
 use crate::http::Http;
-#[cfg(all(feature = "http", feature = "model"))]
-use serde_json::json;
 
 #[cfg(feature = "model")]
 impl ChannelId {

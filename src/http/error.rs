@@ -6,17 +6,8 @@ use reqwest::{
     Url,
     UrlError,
 };
-use std::{
-    error::Error as StdError,
-    fmt::{
-        Display,
-        Formatter,
-        Result as FmtResult
-    }
-};
 
-use native_tls::Error as TlsError;
-use serde_json::Error as JsonError;
+use failure::Fail;
 
 #[derive(Clone, Serialize, Deserialize, PartialEq)]
 pub struct DiscordJsonError {
@@ -57,7 +48,9 @@ impl From<Response> for ErrorResponse {
 #[derive(Debug, Fail)]
 pub enum HttpError {
     /// When a non-successful status code was received for a request.
+    #[fail(display = "request failed: {:?}", _0)]
     UnsuccessfulRequest(ErrorResponse),
+
     /// When the decoding of a ratelimit header could not be properly decoded
     /// into an `i64`.
     #[fail(display = "Error decoding a header into an i64")]
@@ -67,38 +60,35 @@ pub enum HttpError {
     /// from UTF-8.
     #[fail(display = "Error decoding a header from UTF-8")]
     RateLimitUtf8,
-    
+
     /// When parsing an URL failed due to invalid input.
     #[fail(display = "failed to parse url")]
-    Url(UrlError),
-    
+    Url(#[cause] UrlError),
+
     /// Header value contains invalid input.
-    #[fail("invalid header value")]
+    #[fail(display = "invalid header value")]
     InvalidHeader(InvalidHeaderValue),
-    
+
     /// Reqwest's Error contain information on why sending a request failed.
-    #[fail("sending http request")]
-    Request(ReqwestError),
-    
-    #[doc(hidden)]
-    __Nonexhaustive,
+    #[fail(display = "sending http request")]
+    Request(#[cause] ReqwestError),
 }
 
-impl From<ReqwestError> for Error {
-    fn from(error: ReqwestError) -> Error {
-        Error::Request(error)
+impl From<ReqwestError> for HttpError {
+    fn from(error: ReqwestError) -> HttpError {
+        HttpError::Request(error)
     }
 }
 
-impl From<UrlError> for Error {
-    fn from(error: UrlError) -> Error {
-        Error::Url(error)
+impl From<UrlError> for HttpError {
+    fn from(error: UrlError) -> HttpError {
+        HttpError::Url(error)
     }
 }
 
-impl From<InvalidHeaderValue> for Error {
-    fn from(error: InvalidHeaderValue) -> Error {
-        Error::InvalidHeader(error)
+impl From<InvalidHeaderValue> for HttpError {
+    fn from(error: InvalidHeaderValue) -> HttpError {
+        HttpError::InvalidHeader(error)
     }
 }
 
@@ -132,11 +122,5 @@ mod test {
         };
 
         assert_eq!(error_response, known);
-    }
-}
-
-impl From<JsonError> for HttpError {
-    fn from(inner: JsonError) -> Self {
-        HttpError::Json(inner)
     }
 }

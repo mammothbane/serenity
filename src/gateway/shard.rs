@@ -1,3 +1,18 @@
+use std::{
+    sync::Arc,
+    time::{Duration as StdDuration, Instant}
+};
+
+use parking_lot::Mutex;
+use url::Url;
+use log::{error, debug, info, trace, warn};
+use tungstenite::{
+    error::Error as TungsteniteError,
+    protocol::frame::CloseFrame,
+};
+#[cfg(feature = "native_tls_backend")]
+use tungstenite::handshake::client::Request;
+
 use crate::constants::{self, close_codes};
 use crate::internal::prelude::*;
 use crate::model::{
@@ -6,11 +21,10 @@ use crate::model::{
     id::GuildId,
     user::OnlineStatus
 };
-use parking_lot::Mutex;
-use std::{
-    sync::Arc,
-    time::{Duration as StdDuration, Instant}
-};
+
+#[cfg(not(feature = "native_tls_backend"))]
+use crate::internal::ws_impl::create_rustls_client;
+
 use super::{
     ConnectionStage,
     CurrentPresence,
@@ -20,18 +34,7 @@ use super::{
     WsClient,
     WebSocketGatewayClientExt,
 };
-use tungstenite::{
-    error::Error as TungsteniteError,
-    protocol::frame::CloseFrame,
-};
-use url::Url;
-use log::{error, debug, info, trace, warn};
 
-#[cfg(not(feature = "native_tls_backend"))]
-use crate::internal::ws_impl::create_rustls_client;
-
-#[cfg(feature = "native_tls_backend")]
-use tungstenite::handshake::client::Request;
 
 /// A Shard is a higher-level handler for a websocket connection to Discord's
 /// gateway. The shard allows for sending and receiving messages over the
@@ -228,8 +231,8 @@ impl Shard {
                 Ok(())
             },
             Err(why) => {
-                match why {
-                    Error::Tungstenite(TungsteniteError::Io(err)) => if err.raw_os_error() != Some(32) {
+                match why.downcast()? {
+                    SerenityError::Tungstenite(TungsteniteError::Io(err)) => if err.raw_os_error() != Some(32) {
                         debug!("[Shard {:?}] Err heartbeating: {:?}",
                                self.shard_info,
                                err);
@@ -505,7 +508,9 @@ impl Shard {
         -> Result<Option<ShardAction>> {
         match *event {
             Ok(GatewayEvent::Dispatch(seq, ref event)) => self.handle_gateway_dispatch(seq, event),
+
             Ok(GatewayEvent::Heartbeat(s)) => self.handle_heartbeat_event(s),
+
             Ok(GatewayEvent::HeartbeatAck) => {
                 self.heartbeat_instants.1 = Some(Instant::now());
                 self.last_heartbeat_acknowledged = true;
@@ -514,6 +519,7 @@ impl Shard {
 
                 Ok(None)
             },
+
             Ok(GatewayEvent::Hello(interval)) => {
                 debug!("[Shard {:?}] Received a Hello; interval: {}",
                        self.shard_info,
@@ -536,6 +542,7 @@ impl Shard {
                     ShardAction::Reconnect(self.reconnection_type())
                 }))
             },
+
             Ok(GatewayEvent::InvalidateSession(resumable)) => {
                 info!(
                     "[Shard {:?}] Received session invalidation",
@@ -548,18 +555,23 @@ impl Shard {
                     ShardAction::Reconnect(ReconnectType::Reidentify)
                 }))
             },
+
             Ok(GatewayEvent::Reconnect) => {
                 Ok(Some(ShardAction::Reconnect(ReconnectType::Reidentify)))
             },
-            Err(Error::Gateway(GatewayError::Closed(ref data))) => self.handle_gateway_closed(&data),
-            Err(Error::Tungstenite(ref why)) => {warn!("[Shard {:?}] Websocket error: {:?}",
-                          self.shard_info, e);
-                    info!("[Shard {:?}] Will attempt to auto-reconnect",
-                          self.shard_info);
+
+            Err(ref e) => match e.downcast_ref() {
+                Some(SerenityError::Gateway(GatewayError::Closed(ref data))) => self.handle_gateway_closed(&data),
+                Some(SerenityError::Tungstenite(ref why)) => {
+                    warn!("[Shard {:?}] Websocket error: {:?}", self.shard_info, why);
+                    info!("[Shard {:?}] Will attempt to auto-reconnect", self.shard_info);
 
                     Ok(Some(ShardAction::Reconnect(self.reconnection_type())))
-                }
-            }
+                },
+                _ => Ok(None),
+            },
+
+            _ => Ok(None),
         }
     }
 
@@ -853,6 +865,7 @@ fn set_client_timeout(client: &mut WsClient) -> Result<()> {
     let stream = match client.get_mut() {
         tungstenite::stream::Stream::Plain(stream) => stream,
         tungstenite::stream::Stream::Tls(stream) => stream.get_mut(),
+        x => panic!(format!("unknown stream type: {:?}", x)),
     };
 
     stream.set_read_timeout(Some(StdDuration::from_millis(500)))?;

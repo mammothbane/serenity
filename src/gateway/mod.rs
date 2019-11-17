@@ -69,7 +69,6 @@ use tungstenite::client::AutoStream;
 
 #[cfg(feature = "client")]
 use crate::client::bridge::gateway::ShardClientMessage;
-use internal::prelude::*;
 
 pub type CurrentPresence = (Option<Activity>, OnlineStatus);
 
@@ -91,30 +90,36 @@ pub enum ConnectionStage {
     ///
     /// [`Shard`]: struct.Shard.html
     Connected,
+
     /// Indicator that the [`Shard`] is connecting and is in, e.g., a resume
     /// phase.
     ///
     /// [`Shard`]: struct.Shard.html
     Connecting,
+
     /// Indicator that the [`Shard`] is fully disconnected and is not in a
     /// reconnecting phase.
     ///
     /// [`Shard`]: struct.Shard.html
     Disconnected,
+
     /// Indicator that the [`Shard`] is currently initiating a handshake.
     ///
     /// [`Shard`]: struct.Shard.html
     Handshake,
+
     /// Indicator that the [`Shard`] has sent an IDENTIFY packet and is awaiting
     /// a READY packet.
     ///
     /// [`Shard`]: struct.Shard.html
     Identifying,
+
     /// Indicator that the [`Shard`] has sent a RESUME packet and is awaiting a
     /// RESUMED packet.
     ///
     /// [`Shard`]: struct.Shard.html
     Resuming,
+
     #[doc(hidden)]
     __Nonexhaustive,
 }

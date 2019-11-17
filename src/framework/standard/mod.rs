@@ -1,3 +1,35 @@
+use std::collections::HashMap;
+use std::sync::Arc;
+
+use threadpool::ThreadPool;
+use uwl::{UnicodeStream, StrExt};
+use failure::Fail;
+
+use crate::client::Context;
+use crate::internal::prelude::*;
+use crate::model::{
+    channel::{Channel, Message},
+    permissions::Permissions,
+};
+
+#[cfg(feature = "cache")]
+use crate::cache::CacheRwLock;
+#[cfg(feature = "cache")]
+use crate::model::guild::{Guild, Member};
+#[cfg(feature = "cache")]
+use crate::internal::RwLockExt;
+
+use super::Framework;
+
+use self::structures::buckets::{Bucket, Ratelimit};
+use self::parse::{ParseError, Invoke};
+use self::parse::map::{CommandMap, GroupMap, Map};
+
+pub use self::configuration::{Configuration, WithWhiteSpace};
+pub use self::structures::*;
+pub use self::structures::buckets::BucketBuilder;
+pub use self::args::{Args, Delimiter, ArgError, Iter, RawArguments};
+
 pub mod help_commands;
 pub mod macros {
     pub use command_attr::{command, group, group_options, help, check};
@@ -8,36 +40,6 @@ mod configuration;
 mod parse;
 mod structures;
 
-pub use args::{Args, Delimiter, Error as ArgError, Iter, RawArguments};
-pub use configuration::{Configuration, WithWhiteSpace};
-pub use structures::*;
-
-use structures::buckets::{Bucket, Ratelimit};
-pub use structures::buckets::BucketBuilder;
-
-use parse::{ParseError, Invoke};
-use parse::map::{CommandMap, GroupMap, Map};
-
-use super::Framework;
-use crate::client::Context;
-use crate::model::{
-    channel::{Channel, Message},
-    permissions::Permissions,
-};
-
-use std::collections::HashMap;
-use std::sync::Arc;
-
-use threadpool::ThreadPool;
-use uwl::{UnicodeStream, StrExt};
-use internal::prelude::*;
-
-#[cfg(feature = "cache")]
-use crate::cache::CacheRwLock;
-#[cfg(feature = "cache")]
-use crate::model::guild::{Guild, Member};
-#[cfg(feature = "cache")]
-use crate::internal::RwLockExt;
 
 /// An enum representing all possible fail conditions under which a command won't
 /// be executed.
@@ -46,12 +48,12 @@ pub enum DispatchError {
     /// When a custom function check has failed.
     #[fail(display = "check failed: {} {:?}", _0, _1)]
     CheckFailed(&'static str, Reason),
-    
+
     /// When the command requester has exceeded a ratelimit bucket. The attached
     /// value is the time a requester has to wait to run the command again.
     #[fail(display = "rate limited ({})", _0)]
     Ratelimited(i64),
-    
+
     /// When the requested command is disabled in bot configuration.
     #[fail(display = "command is disabled")]
     CommandDisabled(String),
@@ -104,13 +106,11 @@ pub enum DispatchError {
     /// When the bot ignores webhooks and a command was issued by one.
     #[fail(display = "webhooks are ignored")]
     WebhookAuthor,
-    #[doc(hidden)]
-    __Nonexhaustive,
 }
 
 pub type DispatchHook = dyn Fn(&mut Context, &Message, DispatchError) + Send + Sync + 'static;
 type BeforeHook = dyn Fn(&mut Context, &Message, &str) -> bool + Send + Sync + 'static;
-type AfterHook = dyn Fn(&mut Context, &Message, &str, Result<(), CommandError>) + Send + Sync + 'static;
+type AfterHook = dyn Fn(&mut Context, &Message, &str, StdResult<(), CommandError>) + Send + Sync + 'static;
 type UnrecognisedHook = dyn Fn(&mut Context, &Message, &str) + Send + Sync + 'static;
 type NormalMessageHook = dyn Fn(&mut Context, &Message) + Send + Sync + 'static;
 type PrefixOnlyHook = dyn Fn(&mut Context, &Message) + Send + Sync + 'static;
@@ -571,7 +571,7 @@ impl StandardFramework {
     /// ```
     pub fn after<F>(mut self, f: F) -> Self
     where
-        F: Fn(&mut Context, &Message, &str, Result<()>) + Send + Sync + 'static,
+        F: Fn(&mut Context, &Message, &str, StdResult<(), CommandError>) + Send + Sync + 'static,
     {
         self.after = Some(Arc::new(f));
 

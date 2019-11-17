@@ -9,8 +9,6 @@ use super::super::id::{EmojiId, RoleId};
 #[cfg(all(feature = "cache", feature = "model"))]
 use serde_json::json;
 #[cfg(all(feature = "cache", feature = "model"))]
-use crate::internal::prelude::*;
-#[cfg(all(feature = "cache", feature = "model"))]
 use std::mem;
 #[cfg(all(feature = "cache", feature = "model"))]
 use super::super::{ModelError, Result};

@@ -1,20 +1,18 @@
-use uwl::UnicodeStream;
-
 use std::cell::Cell;
-use std::error::Error as StdError;
 use std::marker::PhantomData;
-use std::{fmt, str::FromStr};
+use std::str::FromStr;
+
+use uwl::UnicodeStream;
+use failure::Fail;
+use crate::internal::prelude::*;
+
 
 /// Defines how an operation on an `Args` method failed.
 #[derive(Debug, Fail, PartialEq, Eq)]
-pub enum ArgError<E> {
+pub enum ArgError {
     /// "END-OF-STRING". There's nothing to parse anymore.
     #[fail(display = "reached end of string")]
     Eos,
-
-    /// The parsing operation failed; the error can be anything returned from the `FromStr` trait.
-    #[fail(display = "parsing failed")]
-    Parse(E),
 }
 
 /// Dictates how `Args` should split arguments, if by one character, or a string.
@@ -522,8 +520,8 @@ impl Args {
     /// [`trimmed`]: #method.trimmed
     /// [`quoted`]: #method.quoted
     #[inline]
-    pub fn parse<T: FromStr>(&self) -> Result<T, T::Err> {
-        T::from_str(self.current().ok_or(Error::Eos)?).map_err(Error::Parse)
+    pub fn parse<T: FromStr>(&self) -> Result<T> where T::Err: Fail {
+        T::from_str(self.current().ok_or(ArgError::Eos)?).map_err(Error::from)
     }
 
     /// Parse the current argument and advance.
@@ -548,7 +546,7 @@ impl Args {
     /// [`parse`]: #method.parse
     /// [`next`]: #method.next
     #[inline]
-    pub fn single<T: FromStr>(&mut self) -> Result<T, T::Err> {
+    pub fn single<T: FromStr>(&mut self) -> Result<T> where T::Err: Fail {
         let p = self.parse::<T>()?;
         self.advance();
         Ok(p)
@@ -571,7 +569,7 @@ impl Args {
     /// ```
     ///
     #[inline]
-    pub fn single_quoted<T: FromStr>(&mut self) -> Result<T, T::Err> {
+    pub fn single_quoted<T: FromStr>(&mut self) -> Result<T> where T::Err: Fail {
         let p = self.quoted().parse::<T>()?;
         self.advance();
         Ok(p)
@@ -802,9 +800,6 @@ impl PartialEq for Args {
 
 impl Eq for Args {}
 
-use std::marker::PhantomData;
-use failure::Fail;
-
 /// Parse each argument individually, as an iterator.
 pub struct Iter<'a, T: FromStr> {
     args: &'a mut Args,
@@ -820,7 +815,7 @@ impl<'a, T: FromStr> Iter<'a, T> {
     }
 
     /// Parse the current argument independently.
-    pub fn parse(&self) -> Result<T, T::Err> {
+    pub fn parse(&self) -> Result<T> where T::Err: Fail {
         self.args.state.set(self.state);
         self.args.parse::<T>()
     }
@@ -850,8 +845,8 @@ impl<'a, T: FromStr> Iter<'a, T> {
     }
 }
 
-impl<'a, T: FromStr> Iterator for Iter<'a, T> {
-    type Item = Result<T, T::Err>;
+impl<'a, T: FromStr> Iterator for Iter<'a, T> where T::Err: Fail {
+    type Item = Result<T>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.args.is_empty() {
