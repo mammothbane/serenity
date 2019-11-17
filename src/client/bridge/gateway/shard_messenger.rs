@@ -1,18 +1,18 @@
-use gateway::InterMessage;
-use model::prelude::*;
+use crate::gateway::InterMessage;
+use crate::model::prelude::*;
 use super::{ShardClientMessage, ShardRunnerMessage};
 use std::sync::mpsc::Sender;
-use websocket::message::OwnedMessage;
+use tungstenite::Message;
 use internal::prelude::*;
 
 /// A lightweight wrapper around an mpsc sender.
 ///
 /// This is used to cleanly communicate with a shard's respective
-/// [`ShardRunner`]. This can be used for actions such as setting the game via
-/// [`set_game`] or shutting down via [`shutdown`].
+/// [`ShardRunner`]. This can be used for actions such as setting the activity
+/// via [`set_activity`] or shutting down via [`shutdown`].
 ///
 /// [`ShardRunner`]: struct.ShardRunner.html
-/// [`set_game`]: #method.set_game
+/// [`set_activity`]: #method.set_activity
 /// [`shutdown`]: #method.shutdown
 #[derive(Clone, Debug)]
 pub struct ShardMessenger {
@@ -51,9 +51,6 @@ impl ShardMessenger {
     /// specifying a query parameter:
     ///
     /// ```rust,no_run
-    /// # extern crate parking_lot;
-    /// # extern crate serenity;
-    /// #
     /// # use parking_lot::Mutex;
     /// # use serenity::client::gateway::Shard;
     /// # use std::error::Error;
@@ -62,7 +59,7 @@ impl ShardMessenger {
     /// # fn try_main() -> Result<(), Box<Error>> {
     /// #     let mutex = Arc::new(Mutex::new("".to_string()));
     /// #
-    /// #     let mut shard = Shard::new(mutex.clone(), mutex, [0, 1])?;
+    /// #     let mut shard = Shard::new(mutex.clone(), "", [0, 1])?;
     /// #
     /// use serenity::model::id::GuildId;
     ///
@@ -81,9 +78,6 @@ impl ShardMessenger {
     /// query parameter of `"do"`:
     ///
     /// ```rust,no_run
-    /// # extern crate parking_lot;
-    /// # extern crate serenity;
-    /// #
     /// # use parking_lot::Mutex;
     /// # use serenity::client::gateway::Shard;
     /// # use std::error::Error;
@@ -92,7 +86,7 @@ impl ShardMessenger {
     /// # fn try_main() -> Result<(), Box<Error>> {
     /// #     let mutex = Arc::new(Mutex::new("".to_string()));
     /// #
-    /// #     let mut shard = Shard::new(mutex.clone(), mutex, [0, 1])?;
+    /// #     let mut shard = Shard::new(mutex.clone(), "", [0, 1])?;
     /// #
     /// use serenity::model::id::GuildId;
     ///
@@ -125,18 +119,15 @@ impl ShardMessenger {
         });
     }
 
-    /// Sets the user's current game, if any.
+    /// Sets the user's current activity, if any.
     ///
     /// Other presence settings are maintained.
     ///
     /// # Examples
     ///
-    /// Setting the current game to playing `"Heroes of the Storm"`:
+    /// Setting the current activity to playing `"Heroes of the Storm"`:
     ///
     /// ```rust,no_run
-    /// # extern crate parking_lot;
-    /// # extern crate serenity;
-    /// #
     /// # use parking_lot::Mutex;
     /// # use serenity::client::gateway::Shard;
     /// # use std::error::Error;
@@ -145,21 +136,10 @@ impl ShardMessenger {
     /// # fn try_main() -> Result<(), Box<Error>> {
     /// #     let mutex = Arc::new(Mutex::new("".to_string()));
     /// #
-    /// #     let mut shard = Shard::new(mutex.clone(), mutex, [0, 1]).unwrap();
-    /// #
-    /// # #[cfg(feature = "model")]
-    /// use serenity::model::gateway::Game;
-    /// # #[cfg(not(feature = "model"))]
-    /// use serenity::model::gateway::{Game, GameType};
+    /// #     let mut shard = Shard::new(mutex.clone(), "", [0, 1])?;
+    /// use serenity::model::gateway::Activity;
     ///
-    /// # #[cfg(feature = "model")]
-    /// shard.set_game(Some(Game::playing("Heroes of the Storm")));
-    /// # #[cfg(not(feature = "model"))]
-    /// shard.set_game(Some(Game {
-    ///     kind: GameType::Playing,
-    ///     name: "Heroes of the Storm".to_owned(),
-    ///     url: None,
-    /// }));
+    /// shard.set_activity(Some(Activity::playing("Heroes of the Storm")));
     /// #     Ok(())
     /// # }
     /// #
@@ -167,12 +147,8 @@ impl ShardMessenger {
     /// #     try_main().unwrap();
     /// # }
     /// ```
-    pub fn set_game<T: Into<Game>>(&self, game: Option<T>) {
-        self._set_game(game.map(Into::into))
-    }
-
-    fn _set_game(&self, game: Option<Game>) {
-        let _ = self.send(ShardRunnerMessage::SetGame(game));
+    pub fn set_activity(&self, activity: Option<Activity>) {
+        let _ = self.send(ShardRunnerMessage::SetActivity(activity));
     }
 
     /// Sets the user's full presence information.
@@ -186,9 +162,6 @@ impl ShardMessenger {
     /// online:
     ///
     /// ```rust,ignore
-    /// # extern crate parking_lot;
-    /// # extern crate serenity;
-    /// #
     /// # use parking_lot::Mutex;
     /// # use serenity::client::gateway::Shard;
     /// # use std::error::Error;
@@ -197,11 +170,11 @@ impl ShardMessenger {
     /// # fn try_main() -> Result<(), Box<Error>> {
     /// #     let mutex = Arc::new(Mutex::new("".to_string()));
     /// #
-    /// #     let mut shard = Shard::new(mutex.clone(), mutex, [0, 1]).unwrap();
+    /// #     let mut shard = Shard::new(mutex.clone(), "", [0, 1])?;
     /// #
-    /// use serenity::model::{Game, OnlineStatus};
+    /// use serenity::model::{Activity, OnlineStatus};
     ///
-    /// shard.set_presence(Some(Game::playing("Heroes of the Storm")), OnlineStatus::Online);
+    /// shard.set_presence(Some(Activity::playing("Heroes of the Storm")), OnlineStatus::Online);
     /// #     Ok(())
     /// # }
     /// #
@@ -209,20 +182,12 @@ impl ShardMessenger {
     /// #     try_main().unwrap();
     /// # }
     /// ```
-    pub fn set_presence<T: Into<Game>>(
-        &self,
-        game: Option<T>,
-        status: OnlineStatus,
-    ) {
-        self._set_presence(game.map(Into::into), status)
-    }
-
-    fn _set_presence(&self, game: Option<Game>, mut status: OnlineStatus) {
+    pub fn set_presence(&self, activity: Option<Activity>, mut status: OnlineStatus) {
         if status == OnlineStatus::Offline {
             status = OnlineStatus::Invisible;
         }
 
-        let _ = self.send(ShardRunnerMessage::SetPresence(status, game));
+        let _ = self.send(ShardRunnerMessage::SetPresence(status, activity));
     }
 
     /// Sets the user's current online status.
@@ -237,9 +202,6 @@ impl ShardMessenger {
     /// Setting the current online status for the shard to [`DoNotDisturb`].
     ///
     /// ```rust,no_run
-    /// # extern crate parking_lot;
-    /// # extern crate serenity;
-    /// #
     /// # use parking_lot::Mutex;
     /// # use serenity::client::gateway::Shard;
     /// # use std::error::Error;
@@ -248,7 +210,7 @@ impl ShardMessenger {
     /// # fn try_main() -> Result<(), Box<Error>> {
     /// #     let mutex = Arc::new(Mutex::new("".to_string()));
     /// #
-    /// #     let mut shard = Shard::new(mutex.clone(), mutex, [0, 1]).unwrap();
+    /// #     let mut shard = Shard::new(mutex.clone(), "", [0, 1])?;
     /// #
     /// use serenity::model::user::OnlineStatus;
     ///
@@ -287,13 +249,13 @@ impl ShardMessenger {
     /// the [`set_presence`] method.
     ///
     /// [`set_presence`]: #method.set_presence
-    pub fn websocket_message(&self, message: OwnedMessage) {
+    pub fn websocket_message(&self, message: Message) {
         let _ = self.send(ShardRunnerMessage::Message(message));
     }
 
     #[inline]
     fn send(&self, msg: ShardRunnerMessage)
-        -> Result<()> {
-        self.tx.send(InterMessage::Client(ShardClientMessage::Runner(msg))).map_err(|e| e.into())
+        -> Result<(), SendError<InterMessage>> {
+        self.tx.send(InterMessage::Client(Box::new(ShardClientMessage::Runner(msg))))
     }
 }

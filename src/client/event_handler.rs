@@ -1,4 +1,4 @@
-use model::prelude::*;
+use crate::model::prelude::*;
 use parking_lot::RwLock;
 use serde_json::Value;
 use std::{
@@ -6,15 +6,20 @@ use std::{
     sync::Arc
 };
 use super::context::Context;
-use ::client::bridge::gateway::event::*;
+use crate::client::bridge::gateway::event::*;
 
 /// The core trait for handling events by serenity.
 pub trait EventHandler {
-    /// Dispatched when the cache gets full.
+    /// Dispatched when the cache has received and inserted all data from
+    /// guilds.
+    ///
+    /// This process happens upon starting your bot and should be fairly quick.
+    /// However, cache actions performed prior this event may fail as the data
+    /// could be not inserted yet.
     ///
     /// Provides the cached guilds' ids.
     #[cfg(feature = "cache")]
-    fn cached(&self, _ctx: Context, _guilds: Vec<GuildId>) {}
+    fn cache_ready(&self, _ctx: Context, _guilds: Vec<GuildId>) {}
 
     /// Dispatched when a channel is created.
     ///
@@ -122,25 +127,25 @@ pub trait EventHandler {
     /// Provides the guild's id and the user's member data.
     fn guild_member_addition(&self, _ctx: Context, _guild_id: GuildId, _new_member: Member) {}
 
-    /// Dispatched when a user is removed (kicked).
+    /// Dispatched when a user's membership ends by leaving, getting kicked, or being banned.
     ///
     /// Provides the guild's id, the user's data, and the user's member data if available.
     #[cfg(feature = "cache")]
     fn guild_member_removal(&self, _ctx: Context, _guild: GuildId, _user: User, _member_data_if_available: Option<Member>) {}
 
-    /// Dispatched when a user is removed (kicked).
+    /// Dispatched when a user's membership ends by leaving, getting kicked, or being banned.
     ///
     /// Provides the guild's id, the user's data.
     #[cfg(not(feature = "cache"))]
     fn guild_member_removal(&self, _ctx: Context, _guild_id: GuildId, _kicked: User) {}
 
-    /// Dispatched when a member is updated (e.g their nickname is updated)
+    /// Dispatched when a member is updated (e.g their nickname is updated).
     ///
     /// Provides the member's old data (if available) and the new data.
     #[cfg(feature = "cache")]
     fn guild_member_update(&self, _ctx: Context, _old_if_available: Option<Member>, _new: Member) {}
 
-    /// Dispatched when a member is updated (e.g their nickname is updated)
+    /// Dispatched when a member is updated (e.g their nickname is updated).
     ///
     /// Provides the new data.
     #[cfg(not(feature = "cache"))]
@@ -212,6 +217,22 @@ pub trait EventHandler {
     /// Provides the channel's id and the deleted messages' ids.
     fn message_delete_bulk(&self, _ctx: Context, _channel_id: ChannelId, _multiple_deleted_messages_ids: Vec<MessageId>) {}
 
+    /// Dispatched when a message is updated.
+    ///
+    /// Provides the old message if available,
+    /// the new message as an option in case of cache inconsistencies,
+    /// and the raw [`MessageUpdateEvent`] as a fallback.
+    ///
+    /// [`MessageUpdateEvent`]: ../model/event/struct.MessageUpdateEvent.html
+    #[cfg(feature = "cache")]
+    fn message_update(&self, _ctx: Context, _old_if_available: Option<Message>, _new: Option<Message>, _event: MessageUpdateEvent) {}
+
+    /// Dispatched when a message is updated.
+    ///
+    /// Provides the new data of the message.
+    #[cfg(not(feature = "cache"))]
+    fn message_update(&self, _ctx: Context, _new_data: MessageUpdateEvent) {}
+
     /// Dispatched when a new reaction is attached to a message.
     ///
     /// Provides the reaction's data.
@@ -226,11 +247,6 @@ pub trait EventHandler {
     ///
     /// Provides the channel's id and the message's id.
     fn reaction_remove_all(&self, _ctx: Context, _channel_id: ChannelId, _removed_from_message_id: MessageId) {}
-
-    /// Dispatched when a message is updated.
-    ///
-    /// Provides the new data of the message.
-    fn message_update(&self, _ctx: Context, _new_data: MessageUpdateEvent) {}
 
     fn presence_replace(&self, _ctx: Context, _: Vec<Presence>) {}
 
@@ -277,14 +293,28 @@ pub trait EventHandler {
     /// Provides the voice server's data.
     fn voice_server_update(&self, _ctx: Context, _: VoiceServerUpdateEvent) {}
 
-    /// Dispatched when a user joins, leaves or moves a voice channel.
+    /// Dispatched when a user joins, leaves or moves to a voice channel.
+    ///
+    /// Provides the guild's id (if available) and
+    /// the old and the new state of the guild's voice channels.
+    #[cfg(feature = "cache")]
+    fn voice_state_update(&self, _ctx: Context, _: Option<GuildId>, _old: Option<VoiceState>, _new: VoiceState) {}
+
+    /// Dispatched when a user joins, leaves or moves to a voice channel.
     ///
     /// Provides the guild's id (if available) and
     /// the new state of the guild's voice channels.
+    #[cfg(not(feature = "cache"))]
     fn voice_state_update(&self, _ctx: Context, _: Option<GuildId>, _: VoiceState) {}
 
     /// Dispatched when a guild's webhook is updated.
     ///
     /// Provides the guild's id and the channel's id the webhook belongs in.
     fn webhook_update(&self, _ctx: Context, _guild_id: GuildId, _belongs_to_channel_id: ChannelId) {}
+}
+
+/// This core trait for handling raw events
+pub trait RawEventHandler {
+    /// Dispatched when any event occurs
+    fn raw_event(&self, _ctx: Context, _ev: Event) {}
 }

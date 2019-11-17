@@ -1,5 +1,6 @@
 use parking_lot::RwLock;
 use serde::de::Error as DeError;
+use serde::de::MapAccess;
 use serde::ser::{SerializeSeq, Serialize, Serializer};
 use std::{
     collections::HashMap,
@@ -7,12 +8,12 @@ use std::{
     sync::Arc
 };
 
-use internal::prelude::*;
+use crate::internal::prelude::*;
 
 #[cfg(all(feature = "cache", feature = "model"))]
 use super::permissions::Permissions;
 #[cfg(all(feature = "cache", feature = "model"))]
-use CACHE;
+use crate::cache::CacheRwLock;
 use serde::{Deserialize, Deserializer};
 use model::{
     id::{
@@ -53,6 +54,18 @@ pub fn deserialize_emojis<'de, D: Deserializer<'de>>(
     Ok(emojis)
 }
 
+pub fn serialize_emojis<S: Serializer>(
+    emojis: &HashMap<EmojiId, Emoji>,
+    serializer: S) -> StdResult<S::Ok, S::Error> {
+    let mut seq = serializer.serialize_seq(Some(emojis.len()))?;
+
+    for emoji in emojis.values() {
+        seq.serialize_element(emoji)?;
+    }
+
+    seq.end()
+}
+
 pub fn deserialize_guild_channels<'de, D: Deserializer<'de>>(
     deserializer: D)
     -> StdResult<HashMap<ChannelId, Arc<RwLock<GuildChannel>>>, D::Error> {
@@ -65,6 +78,7 @@ pub fn deserialize_guild_channels<'de, D: Deserializer<'de>>(
 
     Ok(map)
 }
+
 
 pub fn deserialize_members<'de, D: Deserializer<'de>>(
     deserializer: D)
@@ -94,6 +108,19 @@ pub fn deserialize_presences<'de, D: Deserializer<'de>>(
     Ok(presences)
 }
 
+pub fn serialize_presences<S: Serializer>(
+    presences: &HashMap<UserId, Presence>,
+    serializer: S
+) -> StdResult<S::Ok, S::Error> {
+    let mut seq = serializer.serialize_seq(Some(presences.len()))?;
+
+    for presence in presences.values() {
+        seq.serialize_element(presence)?;
+    }
+
+    seq.end()
+}
+
 pub fn deserialize_private_channels<'de, D: Deserializer<'de>>(
     deserializer: D)
     -> StdResult<HashMap<ChannelId, Channel>, D::Error> {
@@ -106,12 +133,26 @@ pub fn deserialize_private_channels<'de, D: Deserializer<'de>>(
             Channel::Private(ref channel) => channel.read().id,
             Channel::Guild(_) => unreachable!("Guild private channel decode"),
             Channel::Category(_) => unreachable!("Channel category private channel decode"),
+            Channel::__Nonexhaustive => unreachable!(),
         };
 
         private_channels.insert(id, private_channel);
     }
 
     Ok(private_channels)
+}
+
+pub fn serialize_private_channels<S: Serializer>(
+    private_channels: &HashMap<ChannelId, Channel>,
+    serializer: S
+) -> StdResult<S::Ok, S::Error> {
+    let mut seq = serializer.serialize_seq(Some(private_channels.len()))?;
+
+    for private_channel in private_channels.values() {
+        seq.serialize_element(private_channel)?;
+    }
+
+    seq.end()
 }
 
 pub fn deserialize_roles<'de, D: Deserializer<'de>>(
@@ -127,6 +168,19 @@ pub fn deserialize_roles<'de, D: Deserializer<'de>>(
     Ok(roles)
 }
 
+pub fn serialize_roles<S: Serializer>(
+    roles: &HashMap<RoleId, Role>,
+    serializer: S
+) -> StdResult<S::Ok, S::Error> {
+    let mut seq = serializer.serialize_seq(Some(roles.len()))?;
+
+    for role in roles.values() {
+        seq.serialize_element(role)?;
+    }
+
+    seq.end()
+}
+
 pub fn deserialize_single_recipient<'de, D: Deserializer<'de>>(
     deserializer: D)
     -> StdResult<Arc<RwLock<User>>, D::Error> {
@@ -138,6 +192,17 @@ pub fn deserialize_single_recipient<'de, D: Deserializer<'de>>(
     };
 
     Ok(Arc::new(RwLock::new(user)))
+}
+
+pub fn serialize_single_recipient<S: Serializer>(
+    user: &Arc<RwLock<User>>,
+    serializer: S,
+) -> StdResult<S::Ok, S::Error> {
+    let mut seq = serializer.serialize_seq(Some(1))?;
+
+    seq.serialize_element(&*user.read())?;
+
+    seq.end()
 }
 
 pub fn deserialize_sync_user<'de, D>(deserializer: D)
@@ -186,6 +251,16 @@ pub fn deserialize_u64<'de, D: Deserializer<'de>>(deserializer: D) -> StdResult<
     deserializer.deserialize_any(U64Visitor)
 }
 
+/// Deserializes an u64, returning 0 if the deserialization failed.
+pub fn deserialize_u64_or_zero<'de, D: Deserializer<'de>>(deserializer: D) -> StdResult<u64, D::Error> {
+    deserialize_u64(deserializer).or(Ok(0))
+}
+
+#[allow(clippy::trivially_copy_pass_by_ref)]
+pub fn serialize_u64<S: Serializer>(data: &u64, ser: S) -> StdResult<S::Ok, S::Error> {
+    ser.serialize_str(&data.to_string())
+}
+
 pub fn deserialize_voice_states<'de, D: Deserializer<'de>>(
     deserializer: D)
     -> StdResult<HashMap<UserId, VoiceState>, D::Error> {
@@ -226,30 +301,40 @@ pub fn serialize_gen_locked_map<K: Eq + Hash, S: Serializer, V: Serialize>(
 }
 
 #[cfg(all(feature = "cache", feature = "model"))]
-pub fn user_has_perms(channel_id: ChannelId, mut permissions: Permissions) -> Result<bool> {
-    let cache = CACHE.read();
+pub fn user_has_perms(
+    cache: impl AsRef<CacheRwLock>,
+    channel_id: ChannelId,
+    guild_id: Option<GuildId>,
+    mut permissions: Permissions
+) -> Result<bool> {
+    let cache = cache.as_ref().read();
     let current_user = &cache.user;
 
-    let channel = match cache.channel(channel_id) {
-        Some(channel) => channel,
-        None => return Err(ModelError::ItemMissing.into()),
-    };
+    let guild_id = match guild_id {
+        Some(id) => id,
+        None => {
+            let channel = match cache.channel(channel_id) {
+                Some(channel) => channel,
+                None => return Err(ModelError::ItemMissing.into()),
+            };
 
-    let guild_id = match channel {
-        Channel::Guild(channel) => channel.read().guild_id,
-        Channel::Group(_) | Channel::Private(_) | Channel::Category(_) => {
-            // Both users in DMs, and all users in groups and maybe all channels in categories will
-            // have the same
-            // permissions.
-            //
-            // The only exception to this is when the current user is blocked by
-            // the recipient in a DM channel, which results in the current user
-            // not being able to send messages.
-            //
-            // Since serenity can't _reasonably_ check and keep track of these,
-            // just assume that all permissions are granted and return `true`.
-            return Ok(true);
-        },
+            match channel {
+                Channel::Guild(channel) => channel.read().guild_id,
+                Channel::Group(_) | Channel::Private(_) | Channel::Category(_) => {
+                    // Both users in DMs, all users in groups, and maybe all channels in categories
+                    // will have the same permissions.
+                    //
+                    // The only exception to this is when the current user is blocked by
+                    // the recipient in a DM channel, preventing the current user
+                    // from sending messages.
+                    //
+                    // Since serenity can't _reasonably_ check and keep track of these,
+                    // just assume that all permissions are granted and return `true`.
+                    return Ok(true);
+                },
+                Channel::__Nonexhaustive => unreachable!(),
+            }
+        }
     };
 
     let guild = match cache.guild(guild_id) {
@@ -259,7 +344,7 @@ pub fn user_has_perms(channel_id: ChannelId, mut permissions: Permissions) -> Re
 
     let perms = guild
         .read()
-        .permissions_in(channel_id, current_user.id);
+        .user_permissions_in(channel_id, current_user.id);
 
     permissions.remove(perms);
 
@@ -275,7 +360,7 @@ macro_rules! num_visitors {
             impl<'de> ::serde::de::Visitor<'de> for $visitor {
                 type Value = $type;
 
-                fn expecting(&self, formatter: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+                fn expecting(&self, formatter: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
                     formatter.write_str("identifier")
                 }
 
@@ -294,6 +379,34 @@ macro_rules! num_visitors {
                 fn visit_i64<E: DeError>(self, v: i64) -> StdResult<Self::Value, E> { Ok(v as $type) }
 
                 fn visit_u64<E: DeError>(self, v: u64) -> StdResult<Self::Value, E> { Ok(v as $type) }
+
+                // This is called when serde_json's `arbitrary_precision` feature is enabled.
+                fn visit_map<A: MapAccess<'de>>(self, mut map: A) -> StdResult<Self::Value, A::Error> {
+                    struct Id {
+                        num: $type,
+                    }
+
+                    struct StrVisitor;
+
+                    impl<'de> Visitor<'de> for StrVisitor {
+                        type Value = $type;
+
+                        fn expecting(&self, formatter: &mut Formatter<'_>) -> FmtResult {
+                            formatter.write_str("string")
+                        }
+
+                        fn visit_str<E: DeError>(self, s: &str) -> StdResult<Self::Value, E> { s.parse().map_err(E::custom) }
+                        fn visit_string<E: DeError>(self, s: String) -> StdResult<Self::Value, E> { s.parse().map_err(E::custom) }
+                    }
+
+                    impl<'de> Deserialize<'de> for Id {
+                        fn deserialize<D: Deserializer<'de>>(des: D) -> StdResult<Self, D::Error> {
+                            Ok(Id { num: des.deserialize_str(StrVisitor)? })
+                        }
+                    }
+
+                    map.next_value::<Id>().map(|id| id.num)
+                }
             }
         )*
     }

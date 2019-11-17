@@ -56,23 +56,28 @@ pub use self::{
     ws_client_ext::WebSocketGatewayClientExt
 };
 
-use model::{
-    gateway::Game,
-    user::OnlineStatus
+use crate::model::{
+    gateway::Activity,
+    user::OnlineStatus,
 };
 use serde_json::Value;
 use std::fmt::{Display, Formatter, Result as FmtResult};
-use websocket::sync::{
-    client::Client,
-    stream::{TcpStream, TlsStream}
-};
+use tungstenite::protocol::WebSocket;
+
+#[cfg(feature = "native_tls_backend")]
+use tungstenite::client::AutoStream;
 
 #[cfg(feature = "client")]
-use client::bridge::gateway::ShardClientMessage;
+use crate::client::bridge::gateway::ShardClientMessage;
 use internal::prelude::*;
 
-pub type CurrentPresence = (Option<Game>, OnlineStatus);
-pub type WsClient = Client<TlsStream<TcpStream>>;
+pub type CurrentPresence = (Option<Activity>, OnlineStatus);
+
+#[cfg(not(feature = "native_tls_backend"))]
+pub type WsClient = WebSocket<rustls::StreamOwned<rustls::ClientSession, std::net::TcpStream>>;
+
+#[cfg(feature = "native_tls_backend")]
+pub type WsClient = WebSocket<AutoStream>;
 
 /// Indicates the current connection stage of a [`Shard`].
 ///
@@ -110,6 +115,8 @@ pub enum ConnectionStage {
     ///
     /// [`Shard`]: struct.Shard.html
     Resuming,
+    #[doc(hidden)]
+    __Nonexhaustive,
 }
 
 impl ConnectionStage {
@@ -146,18 +153,19 @@ impl ConnectionStage {
     /// [`ConnectionStage::Handshake`]: #variant.Handshake
     /// [`ConnectionStage::Identifying`]: #variant.Identifying
     /// [`ConnectionStage::Resuming`]: #variant.Resuming
-    pub fn is_connecting(&self) -> bool {
+    pub fn is_connecting(self) -> bool {
         use self::ConnectionStage::*;
 
-        match *self {
+        match self {
             Connecting | Handshake | Identifying | Resuming => true,
             Connected | Disconnected => false,
+            __Nonexhaustive => unreachable!(),
         }
     }
 }
 
 impl Display for ConnectionStage {
-    fn fmt(&self, f: &mut Formatter) -> FmtResult {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         use self::ConnectionStage::*;
 
         f.write_str(match *self {
@@ -167,6 +175,7 @@ impl Display for ConnectionStage {
             Handshake => "handshaking",
             Identifying => "identifying",
             Resuming => "resuming",
+            __Nonexhaustive => unreachable!(),
         })
     }
 }
@@ -179,14 +188,18 @@ impl Display for ConnectionStage {
 #[derive(Clone, Debug)]
 pub enum InterMessage {
     #[cfg(feature = "client")]
-    Client(ShardClientMessage),
+    Client(Box<ShardClientMessage>),
     Json(Value),
+    #[doc(hidden)]
+    __Nonexhaustive,
 }
 
 pub enum ShardAction {
     Heartbeat,
     Identify,
     Reconnect(ReconnectType),
+    #[doc(hidden)]
+    __Nonexhaustive,
 }
 
 /// The type of reconnection that should be performed.
@@ -195,4 +208,6 @@ pub enum ReconnectType {
     Reidentify,
     /// Indicator that a new connection should be made by sending a RESUME.
     Resume,
+    #[doc(hidden)]
+    __Nonexhaustive,
 }

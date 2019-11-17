@@ -1,6 +1,10 @@
 /// An error returned from the [`Client`].
 ///
 /// [`Client`]: struct.Client.html
+/// [`Error`]: ../enum.Error.html
+/// [`Error::Client`]: ../enum.Error.html#variant.Client
+/// [`GuildId::ban`]: ../model/id/struct.GuildId.html#method.ban
+#[allow(clippy::enum_variant_names)]
 #[derive(Clone, Debug, Eq, Hash, PartialEq, Fail)]
 pub enum ClientError {
     /// When the token provided is invalid. This is returned when validating a
@@ -17,4 +21,8 @@ pub enum ClientError {
     /// error.
     #[fail(display = "The client's shard shut down")]
     Shutdown,
+    
+    #[doc(hidden)]
+    #[fail(display = "unreachable")]
+    __Nonexhaustive,
 }

@@ -12,13 +12,7 @@ mod streamer;
 mod threading;
 
 pub use self::{
-    audio::{
-        Audio,
-        AudioReceiver,
-        AudioSource,
-        AudioType,
-        LockedAudio
-    },
+    audio::{Audio, AudioReceiver, AudioSource, AudioType, LockedAudio},
     dca::DcaMetadata,
     error::{DcaError, VoiceError},
     handler::Handler,
@@ -29,18 +23,21 @@ pub use self::{
         ffmpeg_optioned,
         opus,
         pcm,
-        ytdl
+        ytdl,
+        ytdl_search
     }
 };
+pub use audiopus::Bitrate;
 
 use self::connection_info::ConnectionInfo;
 
-const CRYPTO_MODE: &'static str = "xsalsa20_poly1305";
+const CRYPTO_MODE: &str = "xsalsa20_poly1305";
 
 pub(crate) enum Status {
     Connect(ConnectionInfo),
-    #[allow(dead_code)] Disconnect,
-    SetReceiver(Option<Box<AudioReceiver>>),
+    Disconnect,
+    SetReceiver(Option<Box<dyn AudioReceiver>>),
     SetSender(Option<LockedAudio>),
     AddSender(LockedAudio),
+    SetBitrate(Bitrate),
 }

@@ -1,5 +1,3 @@
-extern crate serenity;
-
 use std::env;
 
 use serenity::{
@@ -10,9 +8,9 @@ use serenity::{
 struct Handler;
 
 impl EventHandler for Handler {
-    fn message(&self, _: Context, msg: Message) {
+    fn message(&self, context: Context, msg: Message) {
         if msg.content == "!messageme" {
-            // If the `methods` feature is enabled, then model structs will
+            // If the `utils`-feature is enabled, then model structs will
             // have a lot of useful methods implemented, to avoid using an
             // often otherwise bulky Context, or even much lower-level `rest`
             // method.
@@ -20,7 +18,13 @@ impl EventHandler for Handler {
             // In this case, you can direct message a User directly by simply
             // calling a method on its instance, with the content of the
             // message.
-            if let Err(why) = msg.author.dm(|m| m.content("Hello!")) {
+            let dm = msg.author.dm(&context, |m| {
+                m.content("Hello!");
+
+                m
+            });
+
+            if let Err(why) = dm {
                 println!("Error when direct messaging user: {:?}", why);
             }
         }

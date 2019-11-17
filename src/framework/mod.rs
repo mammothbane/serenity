@@ -11,7 +11,7 @@
 //! condition is met prior to calling a command; this could be a check that the
 //! user who posted a message owns the bot, for example.
 //!
-//! Each command has a given named, and an associated function/closure. For
+//! Each command has a given name, and an associated function/closure. For
 //! example, you might have two commands: `"ping"` and `"weather"`. These each
 //! have an associated function that are called if the framework determines
 //! that a message is of that command.
@@ -31,31 +31,47 @@
 //! Configuring a Client with a framework, which has a prefix of `"~"` and a
 //! ping and about command:
 //!
-//! ```rust,ignore
-//! use serenity::client::{Client, Context};
-//! use serenity::model::Message;
+//! ```rust,no_run
+//! use serenity::client::{Client, Context, EventHandler};
+//! use serenity::model::channel::Message;
+//! use serenity::framework::standard::macros::{command, group};
+//! use serenity::framework::standard::{StandardFramework, CommandResult};
 //! use std::env;
 //!
-//! let mut client = Client::new(&env::var("DISCORD_TOKEN").unwrap());
+//! #[command]
+//! fn about(ctx: &mut Context, msg: &Message) -> CommandResult {
+//!     msg.channel_id.say(&ctx.http, "A simple test bot")?;
 //!
-//! client.with_framework(|f| f
-//!     .configure(|c| c.prefix("~"))
-//!     .on("about", |_, msg, _| {
-//!         msg.channel_id.say("A simple test bot")?;
+//!     Ok(())
+//! }
+//! 
+//! #[command]
+//! fn ping(ctx: &mut Context, msg: &Message) -> CommandResult {
+//!     msg.channel_id.say(&ctx.http, "pong!")?;
 //!
-//!         // The `command!` macro implicitly puts an `Ok(())` at the end of each command definiton;
-//!         // signifying successful execution.
-//!         //
-//!         // However since we're using `on` that requires a function with the definition `Fn(Context, Message, Args) -> Result<(), _>`,
-//!         // we need to manually put the `Ok` ourselves.
-//!         Ok(())
-//!     })
-//!     .cmd("ping", ping));
-//!
-//!
-//! command!(ping(_context, message) {
-//!     message.channel_id.say("Pong!")?;
+//!     Ok(())
+//! }
+//! 
+//! group!({
+//!     name: "general",
+//!     commands: [about, ping],
 //! });
+//! 
+//! struct Handler;
+//! 
+//! impl EventHandler for Handler {}
+//! 
+//! # fn main() {
+//! let mut client = Client::new(&env::var("DISCORD_TOKEN").unwrap(), Handler).unwrap();
+//!
+//! client.with_framework(StandardFramework::new()
+//!     .configure(|c| c.prefix("~"))
+//!     // The `group!` (and similarly, `#[command]`) macro generates static instances 
+//!     // containing any options you gave it. For instance, the group `name` and its `commands`. 
+//!     // Their identifiers, names you can use to refer to these instances in code, are an 
+//!     // all-uppercased version of the `name` with a `_GROUP` suffix appended at the end.
+//!     .group(&GENERAL_GROUP));
+//! # }
 //! ```
 //!
 //! [`Client::with_framework`]: ../client/struct.Client.html#method.with_framework
@@ -66,41 +82,40 @@ pub mod standard;
 #[cfg(feature = "standard_framework")]
 pub use self::standard::StandardFramework;
 
-use client::Context;
-use model::channel::Message;
+use crate::client::Context;
+use crate::model::channel::Message;
 use threadpool::ThreadPool;
+use std::sync::Arc;
 
-#[cfg(feature = "standard_framework")]
-use model::id::UserId;
-
-/// This trait allows for serenity to either use its builtin framework, or yours.
+/// A trait for defining your own framework for serenity to use.
+///
+/// Should you implement this trait, or define a `message` handler, depends on you.
+/// However, using this will benefit you by abstracting the `EventHandler` away,
+/// and providing a reference to serenity's threadpool,
+/// so that you may run your commands in separate threads.
 pub trait Framework {
-    fn dispatch(&mut self, Context, Message, &ThreadPool);
-
-    #[doc(hidden)]
-    #[cfg(feature = "standard_framework")]
-    fn update_current_user(&mut self, UserId) {}
+    fn dispatch(&mut self, _: Context, _: Message, _: &ThreadPool);
 }
 
 impl<F: Framework + ?Sized> Framework for Box<F> {
+     #[inline]
     fn dispatch(&mut self, ctx: Context, msg: Message, threadpool: &ThreadPool) {
         (**self).dispatch(ctx, msg, threadpool);
     }
+}
 
-    #[cfg(feature = "standard_framework")]
-    fn update_current_user(&mut self, id: UserId) {
-        (**self).update_current_user(id);
+impl<T: Framework + ?Sized> Framework for Arc<T> {
+    #[inline]
+    fn dispatch(&mut self, ctx: Context, msg: Message, threadpool: &threadpool::ThreadPool) {
+        if let Some(s) = Arc::get_mut(self) {
+            (*s).dispatch(ctx, msg, threadpool)
+        }
     }
 }
 
 impl<'a, F: Framework + ?Sized> Framework for &'a mut F {
+     #[inline]
     fn dispatch(&mut self, ctx: Context, msg: Message, threadpool: &ThreadPool) {
         (**self).dispatch(ctx, msg, threadpool);
     }
-
-    #[cfg(feature = "standard_framework")]
-    fn update_current_user(&mut self, id: UserId) {
-        (**self).update_current_user(id);
-    }
 }
-

@@ -7,10 +7,6 @@
 //! allows data to be "corrupted", and _may or may not_ cause misfunctions
 //! within the library. Mutate data at your own discretion.
 //!
-//! A "globally available" instance of the Cache is available at
-//! [`CACHE`]. This is the instance that is updated by the library,
-//! meaning you should _not_ need to maintain updating it yourself in any case.
-//!
 //! # Use by Models
 //!
 //! Most models of Discord objects, such as the [`Message`], [`GuildChannel`],
@@ -39,10 +35,10 @@
 //! [`Message`]: ../model/channel/struct.Message.html
 //! [`GuildChannel`]: ../model/channel/struct.GuildChannel.html
 //! [`Role`]: ../model/guild/struct.Role.html
-//! [`CACHE`]: ../struct.CACHE.html
 //! [`http`]: ../http/index.html
 
-use model::prelude::*;
+use std::str::FromStr;
+use crate::model::prelude::*;
 use parking_lot::RwLock;
 use std::collections::{
     hash_map::Entry,
@@ -52,8 +48,8 @@ use std::collections::{
 };
 use std::{
     default::Default,
+    ops::Deref,
     sync::Arc,
-    time::Duration,
 };
 
 mod cache_update;
@@ -63,6 +59,30 @@ pub use self::cache_update::CacheUpdate;
 pub use self::settings::Settings;
 
 type MessageCache = HashMap<ChannelId, HashMap<MessageId, Message>>;
+
+pub trait FromStrAndCache: Sized {
+    type Err;
+
+    fn from_str(cache: impl AsRef<CacheRwLock>, s: &str) -> Result<Self, Self::Err>;
+}
+
+pub trait StrExt: Sized {
+    fn parse_cached<F: FromStrAndCache>(&self, cache: impl AsRef<CacheRwLock>) -> Result<F, F::Err>;
+}
+
+impl<'a> StrExt for &'a str {
+    fn parse_cached<F: FromStrAndCache>(&self, cache: impl AsRef<CacheRwLock>) -> Result<F, F::Err> {
+        F::from_str(&cache, &self)
+    }
+}
+
+impl<F: FromStr> FromStrAndCache for F {
+    type Err = F::Err;
+
+    fn from_str(_cache: impl AsRef<CacheRwLock>, s: &str) -> Result<Self, Self::Err> {
+        s.parse::<F>()
+    }
+}
 
 /// A cache of all events received over a [`Shard`], where storing at least
 /// some data from the event is possible.
@@ -222,7 +242,6 @@ impl Cache {
     /// #
     /// # #[cfg(feature = "client")]
     /// # fn main() {
-    /// use serenity::CACHE;
     /// use std::thread;
     /// use std::time::Duration;
     ///
@@ -241,7 +260,7 @@ impl Cache {
     ///         // seconds.
     ///         thread::sleep(Duration::from_secs(5));
     ///
-    ///         println!("{} unknown members", CACHE.read().unknown_members());
+    ///         println!("{} unknown members", ctx.cache.read().unknown_members());
     ///     }
     /// }
     ///
@@ -284,9 +303,12 @@ impl Cache {
     /// Printing the count of all private channels and groups:
     ///
     /// ```rust,no_run
-    /// use serenity::CACHE;
-    ///
-    /// let amount = CACHE.read().all_private_channels().len();
+    /// # use serenity::{cache::{Cache, CacheRwLock}};
+    /// # use parking_lot::RwLock;
+    /// # use std::sync::Arc;
+    /// #
+    /// # let cache: CacheRwLock = Arc::new(RwLock::new(Cache::default())).into();
+    /// let amount = cache.read().all_private_channels().len();
     ///
     /// println!("There are {} private channels", amount);
     /// ```
@@ -316,13 +338,11 @@ impl Cache {
     /// # use serenity::model::prelude::*;
     /// # use serenity::prelude::*;
     /// #
-    /// use serenity::CACHE;
-    ///
     /// struct Handler;
     ///
     /// impl EventHandler for Handler {
-    ///     fn ready(&self, _: Context, _: Ready) {
-    ///         let guilds = CACHE.read().guilds.len();
+    ///     fn ready(&self, context: Context, _: Ready) {
+    ///         let guilds = context.cache.read().guilds.len();
     ///
     ///         println!("Guilds in the Cache: {}", guilds);
     ///     }
@@ -397,19 +417,17 @@ impl Cache {
     /// Retrieve a guild from the cache and print its name:
     ///
     /// ```rust,no_run
-    /// # use std::error::Error;
+    /// # use serenity::{cache::{Cache, CacheRwLock}};
+    /// # use parking_lot::RwLock;
+    /// # use std::{error::Error, sync::Arc};
     /// #
-    /// # fn try_main() -> Result<(), Box<Error>> {
-    /// use serenity::CACHE;
-    ///
-    /// if let Some(guild) = CACHE.read().guild(7) {
+    /// # fn main() -> Result<(), Box<Error>> {
+    /// # let cache: CacheRwLock = Arc::new(RwLock::new(Cache::default())).into();
+    /// // assuming the cache is in scope, e.g. via `Context`
+    /// if let Some(guild) = cache.read().guild(7) {
     ///     println!("Guild name: {}", guild.read().name);
     /// }
     /// #   Ok(())
-    /// # }
-    /// #
-    /// # fn main() {
-    /// #     try_main().unwrap();
     /// # }
     /// ```
     #[inline]
@@ -438,18 +456,16 @@ impl Cache {
     /// # use serenity::model::prelude::*;
     /// # use serenity::prelude::*;
     /// #
-    /// use serenity::CACHE;
-    ///
     /// struct Handler;
     ///
     /// impl EventHandler for Handler {
-    ///     fn message(&self, ctx: Context, message: Message) {
-    ///         let cache = CACHE.read();
+    ///     fn message(&self, context: Context, message: Message) {
+    ///         let cache = context.cache.read();
     ///
     ///         let channel = match cache.guild_channel(message.channel_id) {
     ///             Some(channel) => channel,
     ///             None => {
-    /// if let Err(why) = message.channel_id.say("Could not find guild's
+    /// if let Err(why) = message.channel_id.say(&context.http, "Could not find guild's
     /// channel data") {
     ///                     println!("Error sending message: {:?}", why);
     ///                 }
@@ -496,19 +512,16 @@ impl Cache {
     /// Retrieve a group from the cache and print its owner's id:
     ///
     /// ```rust,no_run
-    /// # use std::error::Error;
+    /// # use serenity::cache::{Cache, CacheRwLock};
+    /// # use parking_lot::RwLock;
+    /// # use std::{error::Error, sync::Arc};
     /// #
-    /// # fn try_main() -> Result<(), Box<Error>> {
-    /// use serenity::CACHE;
-    ///
-    /// if let Some(group) = CACHE.read().group(7) {
+    /// # fn main() -> Result<(), Box<Error>> {
+    /// # let cache: CacheRwLock = Arc::new(RwLock::new(Cache::default())).into();
+    /// if let Some(group) = cache.read().group(7) {
     ///     println!("Owner Id: {}", group.read().owner_id);
     /// }
     /// #     Ok(())
-    /// # }
-    /// #
-    /// # fn main() {
-    /// #     try_main().unwrap();
     /// # }
     /// ```
     #[inline]
@@ -532,9 +545,13 @@ impl Cache {
     /// [`Client::on_message`] context:
     ///
     /// ```rust,ignore
-    /// use serenity::CACHE;
+    /// # use serenity::{cache::{Cache, CacheRwLock}, model::prelude::*, prelude::*};
+    /// # use parking_lot::RwLock;
+    /// # use std::sync::Arc;
+    /// #
+    /// # let cache: CacheRwLock = Arc::new(RwLock::new(Cache::default())).into();
+    /// let cache = cache.read();
     ///
-    /// let cache = CACHE.read();
     /// let member = {
     ///     let channel = match cache.guild_channel(message.channel_id) {
     ///         Some(channel) => channel,
@@ -577,6 +594,52 @@ impl Cache {
         })
     }
 
+    /// Retrieves a [`Channel`]'s message from the cache based on the channel's and
+    /// message's given Ids.
+    ///
+    /// **Note**: This will clone the entire message.
+    ///
+    /// # Examples
+    ///
+    /// Retrieving the message object from a channel, in a
+    /// [`EventHandler::message`] context:
+    ///
+    /// ```rust,no_run
+    /// # use serenity::{cache::{Cache, CacheRwLock}, http::Http, model::id::{ChannelId, MessageId}};
+    /// # use parking_lot::RwLock;
+    /// # use std::sync::Arc;
+    /// #
+    /// # let http = Arc::new(Http::new_with_token("DISCORD_TOKEN"));
+    /// # let message = ChannelId(0).message(&http, MessageId(1)).unwrap();
+    /// # let cache: CacheRwLock = Arc::new(RwLock::new(Cache::default())).into();
+    /// #
+    /// let cache = cache.read();
+    /// let fetched_message = cache.message(message.channel_id, message.id);
+    ///
+    /// match fetched_message {
+    ///     Some(m) => {
+    ///         assert_eq!(message.content, m.content);
+    ///     },
+    ///     None => {
+    ///         println!("No message found in cache.");
+    ///     },
+    /// }
+    /// ```
+    ///
+    /// [`EventHandler::message`]: ../client/trait.EventHandler.html#method.message
+    /// [`Channel`]: ../model/channel/struct.Channel.html
+    #[inline]
+    pub fn message<C, M>(&self, channel_id: C, message_id: M) -> Option<Message>
+        where C: Into<ChannelId>, M: Into<MessageId> {
+        self._message(channel_id.into(), message_id.into())
+    }
+
+    fn _message(&self, channel_id: ChannelId, message_id: MessageId) -> Option<Message> {
+        self.messages.get(&channel_id).and_then(|messages| {
+            messages.get(&message_id).cloned()
+        })
+    }
+
     /// Retrieves a [`PrivateChannel`] from the cache's [`private_channels`]
     /// map, if it exists.
     ///
@@ -591,10 +654,14 @@ impl Cache {
     /// ```rust,no_run
     /// # use std::error::Error;
     /// #
+    /// # use serenity::{cache::{Cache, CacheRwLock}, model::prelude::*, prelude::*};
+    /// # use parking_lot::RwLock;
+    /// # use std::sync::Arc;
+    /// #
     /// # fn try_main() -> Result<(), Box<Error>> {
-    /// use serenity::CACHE;
-    ///
-    /// let cache = CACHE.read();
+    /// #   let cache: CacheRwLock = Arc::new(RwLock::new(Cache::default())).into();
+    /// #   let cache = cache.read();
+    /// // assuming the cache has been unlocked
     ///
     /// if let Some(channel) = cache.private_channel(7) {
     ///     let channel_reader = channel.read();
@@ -635,19 +702,17 @@ impl Cache {
     /// Retrieve a role from the cache and print its name:
     ///
     /// ```rust,no_run
-    /// # use std::error::Error;
+    /// # use serenity::cache::{Cache, CacheRwLock};
+    /// # use parking_lot::RwLock;
+    /// # use std::{error::Error, sync::Arc};
     /// #
-    /// # fn try_main() -> Result<(), Box<Error>> {
-    /// use serenity::CACHE;
-    ///
-    /// if let Some(role) = CACHE.read().role(7, 77) {
+    /// # fn main() -> Result<(), Box<Error>> {
+    /// # let cache: CacheRwLock = Arc::new(RwLock::new(Cache::default())).into();
+    /// // assuming the cache is in scope, e.g. via `Context`
+    /// if let Some(role) = cache.read().role(7, 77) {
     ///     println!("Role with Id 77 is called {}", role.name);
     /// }
     /// #     Ok(())
-    /// # }
-    /// #
-    /// # fn main() {
-    /// #   try_main().unwrap();
     /// # }
     /// ```
     #[inline]
@@ -707,20 +772,18 @@ impl Cache {
     /// Retrieve a user from the cache and print their name:
     ///
     /// ```rust,no_run
-    /// # use std::error::Error;
+    /// # use serenity::client::Context;
+    /// # use serenity::framework::standard::{CommandResult, macros::command};
     /// #
-    /// # fn try_main() -> Result<(), Box<Error>> {
-    /// use serenity::CACHE;
-    ///
-    /// if let Some(user) = CACHE.read().user(7) {
+    /// # #[command]
+    /// # fn test(context: &mut Context) -> CommandResult {
+    /// if let Some(user) = context.cache.read().user(7) {
     ///     println!("User with Id 7 is currently named {}", user.read().name);
     /// }
-    /// #     Ok(())
+    /// # Ok(())
     /// # }
     /// #
-    /// # fn main() {
-    /// #     try_main().unwrap();
-    /// # }
+    /// # fn main() {}
     /// ```
     #[inline]
     pub fn user<U: Into<UserId>>(&self, user_id: U) -> Option<Arc<RwLock<User>>> {
@@ -755,15 +818,6 @@ impl Cache {
     /// [`CacheUpdate` examples]: trait.CacheUpdate.html#examples
     pub fn update<E: CacheUpdate>(&mut self, e: &mut E) -> Option<E::Output> {
         e.update(self)
-    }
-
-    /// Gets the duration it will try for when acquiring a write lock.
-    ///
-    /// Refer to the documentation for [`cache_lock_time`] for more information.
-    ///
-    /// [`cache_lock_time`]: struct.Settings.html#method.cache_lock_time
-    pub fn get_try_write_duration(&self) -> Option<Duration> {
-        self.settings.cache_lock_time
     }
 
     pub(crate) fn update_user_entry(&mut self, user: &User) {
@@ -808,11 +862,12 @@ mod test {
         collections::HashMap,
         sync::Arc,
     };
-    use {
+    use crate::{
         cache::{Cache, CacheUpdate, Settings},
         model::prelude::*,
         prelude::RwLock,
     };
+    use crate::model::guild::PremiumTier::Tier2;
 
     #[test]
     fn test_cache_messages() {
@@ -835,6 +890,7 @@ mod test {
                     bot: false,
                     discriminator: 1,
                     name: "user 1".to_owned(),
+                    _nonexhaustive: (),
                 },
                 channel_id: ChannelId(2),
                 guild_id: Some(GuildId(1)),
@@ -845,6 +901,7 @@ mod test {
                 member: None,
                 mention_everyone: false,
                 mention_roles: vec![],
+                mention_channels: None,
                 mentions: vec![],
                 nonce: Value::Number(Number::from(1)),
                 pinned: false,
@@ -852,7 +909,13 @@ mod test {
                 timestamp: datetime.clone(),
                 tts: false,
                 webhook_id: None,
+                activity: None,
+                application: None,
+                message_reference: None,
+                flags: None,
+                _nonexhaustive: (),
             },
+            _nonexhaustive: (),
         };
         // Check that the channel cache doesn't exist.
         assert!(!cache.messages.contains_key(&event.message.channel_id));
@@ -894,12 +957,15 @@ mod test {
             topic: None,
             user_limit: None,
             nsfw: false,
+            slow_mode_rate: Some(0),
+            _nonexhaustive: (),
         };
 
         // Add a channel delete event to the cache, the cached messages for that
         // channel should now be gone.
         let mut delete = ChannelDeleteEvent {
             channel: Channel::Guild(Arc::new(RwLock::new(guild_channel.clone()))),
+            _nonexhaustive: (),
         };
         assert!(cache.update(&mut delete).is_none());
         assert!(!cache.messages.contains_key(&delete.channel.id()));
@@ -935,8 +1001,16 @@ mod test {
                     system_channel_id: None,
                     verification_level: VerificationLevel::Low,
                     voice_states: HashMap::new(),
+                    description: None,
+                    premium_tier: PremiumTier::Tier0,
                     channels,
+                    premium_subscription_count: 0,
+                    banner: None,
+                    vanity_url_code: Some("bruhmoment".to_string()),
+                    preferred_locale: "en-US".to_string(),
+                    _nonexhaustive: (),
                 },
+                _nonexhaustive: (),
             }
         };
         assert!(cache.update(&mut guild_create).is_none());
@@ -960,7 +1034,14 @@ mod test {
                 roles: HashMap::new(),
                 splash: None,
                 verification_level: VerificationLevel::Low,
+                description: None,
+                premium_tier: Tier2,
+                premium_subscription_count: 12,
+                banner: None,
+                vanity_url_code: Some("bruhmoment".to_string()),
+                _nonexhaustive: (),
             },
+            _nonexhaustive: (),
         };
 
         // The guild existed in the cache, so the cache's guild is returned by the
@@ -969,5 +1050,30 @@ mod test {
 
         // Assert that the channel's message cache no longer exists.
         assert!(!cache.messages.contains_key(&ChannelId(2)));
+    }
+}
+
+/// A neworphantype to allow implementing `AsRef<CacheRwLock>`
+/// for the automatically dereferenced underlying type.
+#[derive(Clone)]
+pub struct CacheRwLock(Arc<RwLock<Cache>>);
+
+impl From<Arc<RwLock<Cache>>> for CacheRwLock {
+    fn from(cache: Arc<RwLock<Cache>>) -> Self {
+        Self(cache)
+    }
+}
+
+impl AsRef<CacheRwLock> for CacheRwLock {
+    fn as_ref(&self) -> &CacheRwLock {
+        &self
+    }
+}
+
+impl Deref for CacheRwLock {
+    type Target = Arc<RwLock<Cache>>;
+
+    fn deref(&self) -> &Arc<RwLock<Cache>> {
+        &self.0
     }
 }

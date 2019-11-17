@@ -30,7 +30,7 @@ use super::Permissions;
 ///             return;
 ///         }
 ///
-///         match guild_id.ban(user, &8) {
+///         match guild_id.ban(&context.http, user, &8) {
 ///             Ok(()) => {
 ///                 // Ban successful.
 ///             },
@@ -84,8 +84,17 @@ pub enum ModelError {
     /// [`Cache`]: ../../cache/struct.Cache.html
     #[fail(display = "Guild not found in the cache")]
     GuildNotFound,
-
-    /// There are hierarchy problems restricting an action.
+    
+    /// An indication that a [role][`Role`] could not be found by
+    /// [Id][`RoleId`] in the [`Cache`].
+    ///
+    /// [`Role`]: ../guild/struct.Role.html
+    /// [`RoleId`]: ../id/struct.GuildId.html
+    /// [`Cache`]: ../../cache/struct.Cache.html
+    #[fail(display = "role couldn't be found by id in cache")]
+    RoleNotFound,
+    
+    /// Indicates that there are hierarchy problems restricting an action.
     ///
     /// For example, when banning a user, if the other user has a role with an
     /// equal to or higher position, then they can not be banned.
@@ -128,4 +137,10 @@ pub enum ModelError {
     /// bot user, which is disallowed by the API.
     #[fail(display = "Attempted to message another bot user")]
     MessagingBot,
+    /// An indicator that the [`ChannelType`] cannot perform an action.
+    ///
+    /// [`ChannelType`]: ../channel/enum.ChannelType.html
+    InvalidChannelType,
+    #[doc(hidden)]
+    __Nonexhaustive,
 }

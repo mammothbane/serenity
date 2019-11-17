@@ -1,7 +1,9 @@
 use super::Result;
 
+use super::super::id::AttachmentId;
+
 #[cfg(feature = "model")]
-use hyper::Client as HyperClient;
+use reqwest::Client as ReqwestClient;
 #[cfg(feature = "model")]
 use std::io::Read;
 
@@ -11,7 +13,7 @@ use std::io::Read;
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Attachment {
     /// The unique ID given to this attachment.
-    pub id: String,
+    pub id: AttachmentId,
     /// The filename of the file that was uploaded. This is equivalent to what
     /// the uploader had their file named.
     pub filename: String,
@@ -25,6 +27,8 @@ pub struct Attachment {
     pub url: String,
     /// If the attachment is an image, then the width of the image is provided.
     pub width: Option<u64>,
+    #[serde(skip)]
+    pub(crate) _nonexhaustive: (),
 }
 
 #[cfg(feature = "model")]
@@ -43,6 +47,8 @@ impl Attachment {
     /// Download all of the attachments associated with a [`Message`]:
     ///
     /// ```rust,no_run
+    /// # #[cfg(feature = "client")]
+    /// # fn main() {
     /// use serenity::model::prelude::*;
     /// use serenity::prelude::*;
     /// use std::env;
@@ -53,13 +59,13 @@ impl Attachment {
     /// struct Handler;
     ///
     /// impl EventHandler for Handler {
-    ///     fn message(&self, _: Context, message: Message) {
+    ///     fn message(&self, context: Context, mut message: Message) {
     ///         for attachment in message.attachments {
     ///             let content = match attachment.download() {
     ///                 Ok(content) => content,
     ///                 Err(why) => {
     ///                     println!("Error downloading attachment: {:?}", why);
-    ///                     let _ = message.channel_id.say("Error downloading attachment");
+    ///                     let _ = message.channel_id.say(&context.http, "Error downloading attachment");
     ///
     ///                     return;
     ///                 },
@@ -69,7 +75,7 @@ impl Attachment {
     ///                 Ok(file) => file,
     ///                 Err(why) => {
     ///                     println!("Error creating file: {:?}", why);
-    ///                     let _ = message.channel_id.say("Error creating file");
+    ///                     let _ = message.channel_id.say(&context.http, "Error creating file");
     ///
     ///                     return;
     ///                 },
@@ -81,7 +87,7 @@ impl Attachment {
     ///                 return;
     ///             }
     ///
-    ///             let _ = message.channel_id.say(&format!("Saved {:?}", attachment.filename));
+    ///             let _ = message.channel_id.say(&context.http, &format!("Saved {:?}", attachment.filename));
     ///         }
     ///     }
     ///
@@ -93,6 +99,10 @@ impl Attachment {
     /// let mut client = Client::new(&token, Handler).unwrap();
     ///
     /// client.start().unwrap();
+    /// # }
+    /// #
+    /// # #[cfg(not(feature = "client"))]
+    /// # fn main() {}
     /// ```
     ///
     /// # Errors
@@ -100,15 +110,15 @@ impl Attachment {
     /// Returns an [`Error::Io`] when there is a problem reading the contents
     /// of the HTTP response.
     ///
-    /// Returns an [`Error::Hyper`] when there is a problem retrieving the
+    /// Returns an [`Error::Http`] when there is a problem retrieving the
     /// attachment.
     ///
-    /// [`Error::Hyper`]: ../../enum.Error.html#variant.Hyper
+    /// [`Error::Http`]: ../../enum.Error.html#variant.Http
     /// [`Error::Io`]: ../../enum.Error.html#variant.Io
     /// [`Message`]: struct.Message.html
     pub fn download(&self) -> Result<Vec<u8>> {
-        let hyper = request_client!();
-        let mut response = hyper.get(&self.url).send()?;
+        let reqwest = ReqwestClient::new();
+        let mut response = reqwest.get(&self.url).send()?;
 
         let mut bytes = vec![];
         response.read_to_end(&mut bytes)?;

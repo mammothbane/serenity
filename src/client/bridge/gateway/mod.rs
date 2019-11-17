@@ -73,12 +73,14 @@ use std::{
     sync::mpsc::Sender,
     time::Duration as StdDuration
 };
-use ::gateway::{ConnectionStage, InterMessage};
+use crate::gateway::{ConnectionStage, InterMessage};
 
 /// A message either for a [`ShardManager`] or a [`ShardRunner`].
 ///
 /// [`ShardManager`]: struct.ShardManager.html
 /// [`ShardRunner`]: struct.ShardRunner.html
+// Once we can use `Box` as part of a pattern, we will reconsider boxing.
+#[allow(clippy::large_enum_variant)]
 #[derive(Clone, Debug)]
 pub enum ShardClientMessage {
     /// A message intended to be worked with by a [`ShardManager`].
@@ -121,6 +123,11 @@ pub enum ShardManagerMessage {
     /// component that receives this to also shutdown with no further action
     /// taken.
     ShutdownInitiated,
+    /// Indicator that a [`ShardRunner`] has finished the shutdown of a shard, allowing it to
+    /// move toward the next one.
+    ///
+    /// [`ShardRunner`]: struct.ShardRunner.html
+    ShutdownFinished(ShardId)
 }
 
 /// A message to be sent to the [`ShardQueuer`].
@@ -144,7 +151,7 @@ pub enum ShardQueuerMessage {
 pub struct ShardId(pub u64);
 
 impl Display for ShardId {
-    fn fmt(&self, f: &mut Formatter) -> FmtResult {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         write!(f, "{}", self.0)
     }
 }

@@ -1,14 +1,23 @@
 //! Models for server and channel invites.
 
+#[cfg(feature = "http")]
+use crate::http::CacheHttp;
 use chrono::{DateTime, FixedOffset};
 use super::prelude::*;
 
 #[cfg(feature = "model")]
-use builder::CreateInvite;
+use crate::builder::CreateInvite;
+#[cfg(feature = "model")]
+use crate::internal::prelude::*;
 #[cfg(all(feature = "cache", feature = "model"))]
 use super::{Permissions, utils as model_utils};
 #[cfg(feature = "model")]
-use {http, utils};
+use crate::utils;
+#[cfg(feature = "cache")]
+use crate::cache::CacheRwLock;
+#[cfg(feature = "http")]
+use crate::http::Http;
+use std::ops::Deref;
 
 /// Information about an invite code.
 ///
@@ -46,6 +55,16 @@ pub struct Invite {
     /// [`Guild`]: ../guild/struct.Guild.html
     /// [`Group`]: ../channel/struct.Group.html
     pub guild: Option<InviteGuild>,
+    /// A representation of the minimal amount of information needed about the
+    /// [`User`] that created the invite.
+    ///
+    /// This can be `None` for invites created by Discord such as invite-widgets
+    /// or vanity invite links.
+    ///
+    /// [`User`]: ../user/struct.User.html
+    pub inviter: Option<InviteUser>,
+    #[serde(skip)]
+    pub(crate) _nonexhaustive: (),
 }
 
 #[cfg(feature = "model")]
@@ -68,25 +87,29 @@ impl Invite {
     /// [`GuildChannel`]: ../channel/struct.GuildChannel.html
     /// [Create Invite]: ../permissions/struct.Permissions.html#associatedconstant.CREATE_INVITE
     /// [permission]: ../permissions/index.html
-    pub fn create<C, F>(channel_id: C, f: F) -> Result<RichInvite>
+    #[cfg(feature = "client")]
+    pub fn create<C, F>(cache_http: impl CacheHttp, channel_id: C, f: F) -> Result<RichInvite>
         where C: Into<ChannelId>, F: FnOnce(CreateInvite) -> CreateInvite {
-        Self::_create(channel_id.into(), f)
+        Self::_create(cache_http, channel_id.into(), f)
     }
 
-    fn _create<F>(channel_id: ChannelId, f: F) -> Result<RichInvite>
+    #[cfg(feature = "client")]
+    fn _create<F>(cache_http: impl CacheHttp, channel_id: ChannelId, f: F) -> Result<RichInvite>
         where F: FnOnce(CreateInvite) -> CreateInvite {
         #[cfg(feature = "cache")]
         {
-            let req = Permissions::CREATE_INVITE;
+            if let Some(cache) = cache_http.cache() {
+                let req = Permissions::CREATE_INVITE;
 
-            if !model_utils::user_has_perms(channel_id, req)? {
-                return Err(ModelError::InvalidPermissions(req).into());
+                if !model_utils::user_has_perms(cache, channel_id, None, req)? {
+                    return Err(ModelError::InvalidPermissions(req).into());
+                }
             }
         }
 
-        let map = utils::vecmap_to_json_map(f(CreateInvite::default()).0);
+        let map = utils::hashmap_to_json_map(f(CreateInvite::default()).0);
 
-        http::create_invite(channel_id.0, &map).into()
+        cache_http.http().create_invite(channel_id.0, &map).into()
     }
 
     /// Deletes the invite.
@@ -101,30 +124,34 @@ impl Invite {
     /// [`ModelError::InvalidPermissions`]: ../error/enum.Error.html#variant.InvalidPermissions
     /// [Manage Guild]: ../permissions/struct.Permissions.html#associatedconstant.MANAGE_GUILD
     /// [permission]: ../permissions/index.html
-    pub fn delete(&self) -> Result<Invite> {
+    #[cfg(feature = "http")]
+    pub fn delete(&self, cache_http: impl CacheHttp) -> Result<Invite> {
         #[cfg(feature = "cache")]
         {
-            let req = Permissions::MANAGE_GUILD;
+            if let Some(cache) = cache_http.cache() {
+                let req = Permissions::MANAGE_GUILD;
 
-            if !model_utils::user_has_perms(self.channel.id, req)? {
-                return Err(ModelError::InvalidPermissions(req).into());
+                let guild_id = self.guild.as_ref().map(|g| g.id);
+                if !model_utils::user_has_perms(cache, self.channel.id, guild_id, req)? {
+                    return Err(ModelError::InvalidPermissions(req).into());
+                }
             }
         }
 
-        http::delete_invite(&self.code).into()
+        cache_http.http().as_ref().delete_invite(&self.code).into()
     }
 
     /// Gets the information about an invite.
-    #[allow(unused_mut)]
-    pub fn get(code: &str, stats: bool) -> Result<Invite> {
+    #[cfg(feature = "http")]
+    pub fn get(http: impl AsRef<Http>, code: &str, stats: bool) -> Result<Invite> {
         let mut invite = code;
 
         #[cfg(feature = "utils")]
         {
-            invite = ::utils::parse_invite(invite);
+            invite = crate::utils::parse_invite(invite);
         }
 
-        http::get_invite(invite, stats)
+        http.as_ref().get_invite(invite, stats)
     }
 
     /// Returns a URL to use for the invite.
@@ -134,38 +161,75 @@ impl Invite {
     /// Retrieve the URL for an invite with the code `WxZumR`:
     ///
     /// ```rust
+    /// # extern crate serde_json;
+    /// # extern crate serenity;
+    /// #
+    /// # use serde_json::json;
     /// # use serenity::model::prelude::*;
     /// #
-    /// # let invite = Invite {
-    /// #     approximate_member_count: Some(1812),
-    /// #     approximate_presence_count: Some(717),
-    /// #     code: "WxZumR".to_string(),
-    /// #     channel: InviteChannel {
-    /// #         id: ChannelId(1),
-    /// #         name: "foo".to_string(),
-    /// #         kind: ChannelType::Text,
+    /// # fn main() {
+    /// # let invite = serde_json::from_value::<Invite>(json!({
+    /// #     "approximate_member_count": Some(1812),
+    /// #     "approximate_presence_count": Some(717),
+    /// #     "code": "WxZumR",
+    /// #     "channel": {
+    /// #         "id": ChannelId(1),
+    /// #         "name": "foo",
+    /// #         "type": ChannelType::Text,
     /// #     },
-    /// #     guild: Some(InviteGuild {
-    /// #         id: GuildId(2),
-    /// #         icon: None,
-    /// #         name: "bar".to_string(),
-    /// #         splash_hash: None,
-    /// #         text_channel_count: Some(7),
-    /// #         voice_channel_count: Some(3),
-    /// #     }),
-    /// # };
+    /// #     "guild": {
+    /// #         "id": GuildId(2),
+    /// #         "icon": None::<String>,
+    /// #         "name": "bar",
+    /// #         "splash_hash": None::<String>,
+    /// #         "text_channel_count": 7,
+    /// #         "voice_channel_count": 3,
+    /// #     },
+    /// #     "inviter": {
+    /// #         "id": UserId(3),
+    /// #         "username": "foo",
+    /// #         "discriminator": "1234",
+    /// #         "avatar": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    /// #     },
+    /// # })).unwrap();
     /// #
     /// assert_eq!(invite.url(), "https://discord.gg/WxZumR");
+    /// # }
     /// ```
     pub fn url(&self) -> String { format!("https://discord.gg/{}", self.code) }
 }
 
-/// A minimal information about the channel an invite points to.
+/// A minimal amount of information about the inviter (person who created the invite).
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct InviteUser {
+    pub id: UserId,
+    #[serde(rename = "username")] pub name: String,
+    #[serde(deserialize_with = "deserialize_u16")] pub discriminator: u16,
+    pub avatar: Option<String>,
+    #[serde(skip)]
+    pub(crate) _nonexhaustive: (),
+}
+
+/// InviteUser implements a Deref to UserId so it gains the convenience methods
+/// for converting it into a [`User`] instance.
+///
+/// [`User`]: ../user/struct.User.html
+impl Deref for InviteUser {
+    type Target = UserId;
+
+    fn deref(&self) -> &Self::Target {
+        &self.id
+    }
+}
+
+/// A minimal amount of information about the channel an invite points to.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct InviteChannel {
     pub id: ChannelId,
     pub name: String,
     #[serde(rename = "type")] pub kind: ChannelType,
+    #[serde(skip)]
+    pub(crate) _nonexhaustive: (),
 }
 
 /// A minimal amount of information about the guild an invite points to.
@@ -177,6 +241,8 @@ pub struct InviteGuild {
     pub splash_hash: Option<String>,
     pub text_channel_count: Option<u64>,
     pub voice_channel_count: Option<u64>,
+    #[serde(skip)]
+    pub(crate) _nonexhaustive: (),
 }
 
 #[cfg(feature = "model")]
@@ -193,7 +259,7 @@ impl InviteGuild {
     /// [`utils::shard_id`]: ../../utils/fn.shard_id.html
     #[cfg(all(feature = "cache", feature = "utils"))]
     #[inline]
-    pub fn shard_id(&self) -> u64 { self.id.shard_id() }
+    pub fn shard_id(&self, cache: impl AsRef<CacheRwLock>) -> u64 { self.id.shard_id(&cache) }
 
     /// Returns the Id of the shard associated with the guild.
     ///
@@ -265,6 +331,8 @@ pub struct RichInvite {
     pub temporary: bool,
     /// The amount of times that an invite has been used.
     pub uses: u64,
+    #[serde(skip)]
+    pub(crate) _nonexhaustive: (),
 }
 
 #[cfg(feature = "model")]
@@ -286,17 +354,21 @@ impl RichInvite {
     /// [`http::delete_invite`]: ../../http/fn.delete_invite.html
     /// [Manage Guild]: ../permissions/struct.Permissions.html#associatedconstant.MANAGE_GUILD.html
     /// [permission]: ../permissions/index.html
-    pub fn delete(&self) -> Result<Invite> {
+    #[cfg(feature = "http")]
+    pub fn delete(&self, cache_http: impl CacheHttp) -> Result<Invite> {
         #[cfg(feature = "cache")]
         {
-            let req = Permissions::MANAGE_GUILD;
+            if let Some(cache) = cache_http.cache() {
+                let req = Permissions::MANAGE_GUILD;
 
-            if !model_utils::user_has_perms(self.channel.id, req)? {
-                return Err(ModelError::InvalidPermissions(req).into());
+                let guild_id = self.guild.as_ref().map(|g| g.id);
+                if !model_utils::user_has_perms(cache, self.channel.id, guild_id, req)? {
+                    return Err(ModelError::InvalidPermissions(req).into());
+                }
             }
         }
 
-        http::delete_invite(&self.code).into()
+        cache_http.http().as_ref().delete_invite(&self.code).into()
     }
 
     /// Returns a URL to use for the invite.
@@ -306,38 +378,44 @@ impl RichInvite {
     /// Retrieve the URL for an invite with the code `WxZumR`:
     ///
     /// ```rust
+    /// # extern crate serde_json;
+    /// # extern crate serenity;
+    /// #
+    /// # use serde_json::json;
     /// # use serenity::model::prelude::*;
     /// #
-    /// # let invite = RichInvite {
-    /// #     code: "WxZumR".to_string(),
-    /// #     channel: InviteChannel {
-    /// #         id: ChannelId(1),
-    /// #         name: "foo".to_string(),
-    /// #         kind: ChannelType::Text,
+    /// # fn main() {
+    /// # let invite = serde_json::from_value::<RichInvite>(json!({
+    /// #     "code": "WxZumR",
+    /// #     "channel": {
+    /// #         "id": ChannelId(1),
+    /// #         "name": "foo",
+    /// #         "type": ChannelType::Text,
     /// #     },
-    /// #     created_at: "2017-01-29T15:35:17.136000+00:00".parse().unwrap(),
-    /// #     guild: Some(InviteGuild {
-    /// #         id: GuildId(2),
-    /// #         icon: None,
-    /// #         name: "baz".to_string(),
-    /// #         splash_hash: None,
-    /// #         text_channel_count: None,
-    /// #         voice_channel_count: None,
-    /// #     }),
-    /// #     inviter: User {
-    /// #         avatar: None,
-    /// #         bot: false,
-    /// #         discriminator: 3,
-    /// #         id: UserId(4),
-    /// #         name: "qux".to_string(),
+    /// #     "created_at": "2017-01-29T15:35:17.136000+00:00",
+    /// #     "guild": {
+    /// #         "id": GuildId(2),
+    /// #         "icon": None::<String>,
+    /// #         "name": "baz",
+    /// #         "splash_hash": None::<String>,
+    /// #         "text_channel_count": None::<u64>,
+    /// #         "voice_channel_count": None::<u64>,
     /// #     },
-    /// #     max_age: 5,
-    /// #     max_uses: 6,
-    /// #     temporary: true,
-    /// #     uses: 7,
-    /// # };
+    /// #     "inviter": {
+    /// #         "avatar": None::<String>,
+    /// #         "bot": false,
+    /// #         "discriminator": 3,
+    /// #         "id": UserId(4),
+    /// #         "username": "qux",
+    /// #     },
+    /// #     "max_age": 5,
+    /// #     "max_uses": 6,
+    /// #     "temporary": true,
+    /// #     "uses": 7,
+    /// # })).unwrap();
     /// #
     /// assert_eq!(invite.url(), "https://discord.gg/WxZumR");
+    /// # }
     /// ```
     pub fn url(&self) -> String { format!("https://discord.gg/{}", self.code) }
 }
