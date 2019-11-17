@@ -103,6 +103,18 @@ package = "http"
 version = "0.1"
 
 [features]
+builder = ["utils"]
+cache = []
+extras = []
+framework = ["client", "model", "utils"]
+http = []
+rustls_backend = ["reqwest/rustls-tls", "tungstenite", "rustls", "webpki", "webpki-roots"]
+native_tls_backend = ["reqwest/default-tls", "tungstenite/tls"]
+model = ["builder", "http"]
+standard_framework = ["framework", "uwl", "command_attr"]
+utils = ["base64"]
+voice = ["byteorder", "gateway", "audiopus", "rand", "sodiumoxide"]
+
 default = [
     "builder",
     "cache",
@@ -115,6 +127,14 @@ default = [
     "utils",
     "rustls_backend",
 ]
+
+client = [
+    "gateway",
+    "http",
+    "threadpool",
+    "typemap",
+]
+
 default_native_tls = [
     "builder",
     "cache",
@@ -127,29 +147,13 @@ default_native_tls = [
     "utils",
     "native_tls_backend",
 ]
-builder = ["utils"]
-cache = []
-client = [
-    "gateway",
-    "http",
-    "threadpool",
-    "typemap",
-]
-extras = []
-framework = ["client", "model", "utils"]
+
 gateway = [
     "flate2",
     "http",
     "url",
     "utils",
 ]
-http = []
-rustls_backend = ["reqwest/rustls-tls", "tungstenite", "rustls", "webpki", "webpki-roots"]
-native_tls_backend = ["reqwest/default-tls", "tungstenite/tls"]
-model = ["builder", "http"]
-standard_framework = ["framework", "uwl", "command_attr"]
-utils = ["base64"]
-voice = ["byteorder", "gateway", "audiopus", "rand", "sodiumoxide"]
 
 [package.metadata.docs.rs]
 all-features = true
