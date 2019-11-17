@@ -1,10 +1,13 @@
-use crate::constants;
 use reqwest::{
+    Client,
     RequestBuilder as ReqwestRequestBuilder,
     header::{AUTHORIZATION, CONTENT_LENGTH, CONTENT_TYPE, USER_AGENT, HeaderMap as Headers, HeaderValue},
     Url,
 };
-use reqwest::Client;
+
+use crate::constants;
+use crate::internal::prelude::*;
+
 use super::{
     HttpError,
     routing::RouteInfo,
@@ -62,7 +65,7 @@ impl<'a> Request<'a> {
         Self { body, headers, route }
     }
 
-    pub fn build(&'a self, client: &Client, token: &str) -> Result<ReqwestRequestBuilder, HttpError> {
+    pub fn build(&'a self, client: &Client, token: &str) -> Result<ReqwestRequestBuilder> {
         let Request {
             body,
             headers: ref request_headers,

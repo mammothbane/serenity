@@ -1731,7 +1731,7 @@ impl Http {
         if response.status().is_success() {
             Ok(response)
         } else {
-            Err(SerenityError::Http(Box::new(HttpError::UnsuccessfulRequest(response.into()))).into())
+            Err(HttpError::UnsuccessfulRequest(response.into()).into())
         }
     }
 
@@ -1776,7 +1776,7 @@ impl Http {
         debug!("Expected {}, got {}", expected, response.status());
         trace!("Unsuccessful response: {:?}", response);
 
-        Err(SerenityError::Http(Box::new(HttpError::UnsuccessfulRequest(response.into()))).into())
+        Err(HttpError::UnsuccessfulRequest(response.into()).into())
     }
 }
 

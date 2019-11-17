@@ -232,7 +232,7 @@ impl Shard {
             },
             Err(why) => {
                 match why.downcast()? {
-                    SerenityError::Tungstenite(TungsteniteError::Io(err)) => if err.raw_os_error() != Some(32) {
+                    TungsteniteError::Io(err) => if err.raw_os_error() != Some(32) {
                         debug!("[Shard {:?}] Err heartbeating: {:?}",
                                self.shard_info,
                                err);
@@ -561,8 +561,8 @@ impl Shard {
             },
 
             Err(ref e) => match e.downcast_ref() {
-                Some(SerenityError::Gateway(GatewayError::Closed(ref data))) => self.handle_gateway_closed(&data),
-                Some(SerenityError::Tungstenite(ref why)) => {
+                Some(GatewayError::Closed(ref data)) => self.handle_gateway_closed(&data),
+                Some(ref why) => {
                     warn!("[Shard {:?}] Websocket error: {:?}", self.shard_info, why);
                     info!("[Shard {:?}] Will attempt to auto-reconnect", self.shard_info);
 

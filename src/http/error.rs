@@ -1,10 +1,8 @@
 use reqwest::{
-    Error as ReqwestError,
     header::InvalidHeaderValue,
     Response,
     StatusCode,
     Url,
-    UrlError,
 };
 
 use failure::Fail;
@@ -61,29 +59,9 @@ pub enum HttpError {
     #[fail(display = "Error decoding a header from UTF-8")]
     RateLimitUtf8,
 
-    /// When parsing an URL failed due to invalid input.
-    #[fail(display = "failed to parse url")]
-    Url(#[cause] UrlError),
-
     /// Header value contains invalid input.
     #[fail(display = "invalid header value")]
     InvalidHeader(InvalidHeaderValue),
-
-    /// Reqwest's Error contain information on why sending a request failed.
-    #[fail(display = "sending http request")]
-    Request(#[cause] ReqwestError),
-}
-
-impl From<ReqwestError> for HttpError {
-    fn from(error: ReqwestError) -> HttpError {
-        HttpError::Request(error)
-    }
-}
-
-impl From<UrlError> for HttpError {
-    fn from(error: UrlError) -> HttpError {
-        HttpError::Url(error)
-    }
 }
 
 impl From<InvalidHeaderValue> for HttpError {

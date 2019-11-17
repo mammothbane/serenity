@@ -433,7 +433,7 @@ impl<H: EventHandler + Send + Sync + 'static,
             },
             Ok(None) => Ok(None),
             Err(e) => match e.downcast() {
-                Ok(SerenityError::Tungstenite(TungsteniteError::Io(_))) => {
+                Ok(TungsteniteError::Io(_)) => {
                     // Check that an amount of time at least double the
                     // heartbeat_interval has passed.
                     //

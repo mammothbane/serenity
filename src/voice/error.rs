@@ -48,14 +48,6 @@ pub enum VoiceError {
     /// The JSON output is given.
     #[fail(display = "url field missing from youtube-dl output")]
     YouTubeDLUrl(Value),
-
-    /// An error from the `opus` crate.
-    #[fail(display = "{}", _0)]
-    Opus(#[cause] OpusError),
-    
-    #[doc(hidden)]
-    #[fail(display = "unreachable")]
-    __Nonexhaustive,
 }
 
 /// An error returned from the dca method.
@@ -69,7 +61,7 @@ pub enum DcaError {
 
     #[fail(display = "invalid DCA size")]
     InvalidSize(i32),
-    
+
     #[doc(hidden)]
     #[fail(display = "unreachable")]
     __Nonexhaustive,
