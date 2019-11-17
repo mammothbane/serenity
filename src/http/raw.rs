@@ -4,6 +4,7 @@ use std::{
     sync::Arc,
 };
 
+use anyhow::Error as AnyErr;
 use parking_lot::Mutex;
 use serde::de::DeserializeOwned;
 use serde_json::json;
@@ -1481,19 +1482,17 @@ impl Http {
     /// [`HttpError::InvalidRequest`]: enum.HttpError.html#variant.InvalidRequest
     pub fn send_files<'a, T, It: IntoIterator<Item=T>>(&self, channel_id: u64, files: It, map: JsonMap) -> Result<Message>
         where T: Into<AttachmentType<'a>> {
-        use failure::err_msg;
 
-    let uri = api!("/channels/{}/messages", channel_id);
-    let url = match Url::parse(&uri) {
-        Ok(url) => url,
-        Err(_) => return Err(err_msg(uri)),
+        let uri = api!("/channels/{}/messages", channel_id);
+        let url = match Url::parse(&uri) {
+            Ok(url) => url,
+            Err(_) => return Err(AnyErr::msg(uri)),
         };
 
         let mut multipart = reqwest::multipart::Form::new();
         let mut file_num = "0".to_string();
 
         for file in files {
-
             match file.into() {
                 AttachmentType::Bytes((bytes, filename)) => {
                     multipart = multipart

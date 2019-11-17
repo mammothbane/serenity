@@ -5,7 +5,7 @@ use reqwest::{
     Url,
 };
 
-use failure::Fail;
+use thiserror::Error;
 
 #[derive(Clone, Serialize, Deserialize, PartialEq)]
 pub struct DiscordJsonError {
@@ -43,24 +43,24 @@ impl From<Response> for ErrorResponse {
 }
 
 
-#[derive(Debug, Fail)]
+#[derive(Debug, Error)]
 pub enum HttpError {
     /// When a non-successful status code was received for a request.
-    #[fail(display = "request failed: {:?}", _0)]
+    #[error("request failed: {:?}", _0)]
     UnsuccessfulRequest(ErrorResponse),
 
     /// When the decoding of a ratelimit header could not be properly decoded
     /// into an `i64`.
-    #[fail(display = "Error decoding a header into an i64")]
+    #[error("Error decoding a header into an i64")]
     RateLimitI64,
 
     /// When the decoding of a ratelimit header could not be properly decoded
     /// from UTF-8.
-    #[fail(display = "Error decoding a header from UTF-8")]
+    #[error("Error decoding a header from UTF-8")]
     RateLimitUtf8,
 
     /// Header value contains invalid input.
-    #[fail(display = "invalid header value")]
+    #[error("invalid header value")]
     InvalidHeader(InvalidHeaderValue),
 }
 

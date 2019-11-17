@@ -1,12 +1,3 @@
-use byteorder::{LittleEndian, ReadBytesExt};
-use crate::internal::prelude::*;
-use audiopus::{
-    Channels,
-    coder::Decoder as OpusDecoder,
-    Result as OpusResult,
-};
-use parking_lot::Mutex;
-use serde_json;
 use std::{
     ffi::OsStr,
     fs::File,
@@ -22,11 +13,22 @@ use std::{
         Stdio
     },
     sync::Arc,
-    result::Result as StdResult,
 };
-use super::{AudioSource, AudioType, DcaError, DcaMetadata, VoiceError, audio};
+
+use byteorder::{LittleEndian, ReadBytesExt};
+use parking_lot::Mutex;
+use serde_json;
 use log::{debug, warn};
+use audiopus::{
+    Channels,
+    coder::Decoder as OpusDecoder,
+    Result as OpusResult,
+};
+
+use crate::internal::prelude::*;
 use crate::prelude::SerenityError;
+
+use super::{AudioSource, AudioType, DcaError, DcaMetadata, VoiceError, audio};
 
 struct ChildContainer(Child);
 
@@ -244,8 +246,7 @@ fn _dca(path: &OsStr) -> Result<Box<dyn AudioSource>> {
             .read_to_end(&mut raw_json)?;
     }
 
-    let metadata = serde_json::from_slice::<DcaMetadata>(raw_json.as_slice())
-        .map_err(DcaError::InvalidMetadata)?;
+    let metadata = serde_json::from_slice::<DcaMetadata>(raw_json.as_slice())?;
 
     Ok(opus(metadata.is_stereo(), reader))
 }

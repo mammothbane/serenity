@@ -1,38 +1,38 @@
 use tungstenite::protocol::CloseFrame;
-use failure::Fail;
+use thiserror::Error;
 
 /// An error that occurred while attempting to deal with the gateway.
 ///
 /// Note that - from a user standpoint - there should be no situation in which
 /// you manually handle these.
-#[derive(Clone, Debug, Fail)]
+#[derive(Clone, Debug, Error)]
 pub enum GatewayError {
     /// There was an error building a URL.
-    #[fail(display = "Error building url")]
+    #[error("Error building url")]
     BuildingUrl,
 
     /// The connection closed, potentially uncleanly.
-    #[fail(display = "Connection closed")]
+    #[error("Connection closed")]
     Closed(Option<CloseFrame<'static>>),
 
     /// Expected a Hello during a handshake
-    #[fail(display = "Expected a Hello")]
+    #[error("Expected a Hello")]
     ExpectedHello,
 
     /// When there was an error sending a heartbeat.
-    #[fail(display = "Failed sending a heartbeat")]
+    #[error("Failed sending a heartbeat")]
     HeartbeatFailed,
 
     /// When invalid authentication (a bad token) was sent in the IDENTIFY.
-    #[fail(display = "Sent invalid authentication")]
+    #[error("Sent invalid authentication")]
     InvalidAuthentication,
 
     /// Expected a Ready or an InvalidateSession
-    #[fail(display = "Expected a valid Handshake")]
+    #[error("Expected a valid Handshake")]
     InvalidHandshake,
 
     /// An indicator that an unknown opcode was received from the gateway.
-    #[fail(display = "Invalid OpCode")]
+    #[error("Invalid OpCode")]
     InvalidOpCode,
 
     /// When invalid sharding data was sent in the IDENTIFY.
@@ -41,15 +41,15 @@ pub enum GatewayError {
     ///
     /// Sending a shard ID of 5 when sharding with 3 total is considered
     /// invalid.
-    #[fail(display = "Sent invalid shard data")]
+    #[error("Sent invalid shard data")]
     InvalidShardData,
 
     /// When no authentication was sent in the IDENTIFY.
-    #[fail(display = "Sent no authentication")]
+    #[error("Sent no authentication")]
     NoAuthentication,
 
     /// When a session Id was expected (for resuming), but was not present.
-    #[fail(display = "No Session Id present when required")]
+    #[error("No Session Id present when required")]
     NoSessionId,
 
     /// When a shard would have too many guilds assigned to it.
@@ -60,10 +60,10 @@ pub enum GatewayError {
     /// have over the maximum number of allowed guilds per shard.
     ///
     /// This limit is currently 2500 guilds per shard.
-    #[fail(display = "Shard has too many guilds")]
+    #[error("Shard has too many guilds")]
     OverloadedShard,
 
     /// Failed to reconnect after a number of attempts.
-    #[fail(display = "Failed to Reconnect")]
+    #[error("Failed to Reconnect")]
     ReconnectFailure,
 }

@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use threadpool::ThreadPool;
 use uwl::{UnicodeStream, StrExt};
-use failure::Fail;
+use thiserror::Error;
 
 use crate::client::Context;
 use crate::internal::prelude::*;
@@ -43,68 +43,68 @@ mod structures;
 
 /// An enum representing all possible fail conditions under which a command won't
 /// be executed.
-#[derive(Debug, Fail, Clone)]
+#[derive(Debug, Error, Clone)]
 pub enum DispatchError {
     /// When a custom function check has failed.
-    #[fail(display = "check failed: {} {:?}", _0, _1)]
+    #[error("check failed: {} {:?}", _0, _1)]
     CheckFailed(&'static str, Reason),
 
     /// When the command requester has exceeded a ratelimit bucket. The attached
     /// value is the time a requester has to wait to run the command again.
-    #[fail(display = "rate limited ({})", _0)]
+    #[error("rate limited ({})", _0)]
     Ratelimited(i64),
 
     /// When the requested command is disabled in bot configuration.
-    #[fail(display = "command is disabled")]
+    #[error("command is disabled")]
     CommandDisabled(String),
 
     /// When the user is blocked in bot configuration.
-    #[fail(display = "user is blocked")]
+    #[error("user is blocked")]
     BlockedUser,
 
     /// When the guild or its owner is blocked in bot configuration.
-    #[fail(display = "guild is blocked")]
+    #[error("guild is blocked")]
     BlockedGuild,
 
     /// When the channel blocked in bot configuration.
-    #[fail(display = "channel is blocked in bot configuration")]
+    #[error("channel is blocked in bot configuration")]
     BlockedChannel,
 
     /// When the command requester lacks specific required permissions.
-    #[fail(display = "additional permissions required: {:?}", _0)]
+    #[error("additional permissions required: {:?}", _0)]
     LackingPermissions(Permissions),
 
     /// When the requested command can only be used in a direct message or group
     /// channel.
-    #[fail(display = "command can only be used in DMs")]
+    #[error("command can only be used in DMs")]
     OnlyForDM,
 
     /// When the requested command can only be ran in guilds, or the bot doesn't
     /// support DMs.
-    #[fail(display = "command can only be used in guild channels")]
+    #[error("command can only be used in guild channels")]
     OnlyForGuilds,
 
     /// When the requested command can only be used by bot owners.
-    #[fail(display = "command can only be used by bot owners")]
+    #[error("command can only be used by bot owners")]
     OnlyForOwners,
 
     /// When the requested command requires one role.
-    #[fail(display = "command requires one role")]
+    #[error("command requires one role")]
     LackingRole,
 
     /// When there are too few arguments.
-    #[fail(display = "command required more arguments (provided: {}, minimum: {})", given, min)]
+    #[error("command required more arguments (provided: {}, minimum: {})", given, min)]
     NotEnoughArguments { min: u16, given: usize },
     /// When there are too many arguments.
-    #[fail(display = "command received too many arguments (provided: {}, maximum: {})", given, max)]
+    #[error("command received too many arguments (provided: {}, maximum: {})", given, max)]
     TooManyArguments { max: u16, given: usize },
     /// When the command was requested by a bot user when they are set to be
     /// ignored.
-    #[fail(display = "user is ignored")]
+    #[error("user is ignored")]
     IgnoredBot,
 
     /// When the bot ignores webhooks and a command was issued by one.
-    #[fail(display = "webhooks are ignored")]
+    #[error("webhooks are ignored")]
     WebhookAuthor,
 }
 

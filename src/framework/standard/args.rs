@@ -3,15 +3,17 @@ use std::marker::PhantomData;
 use std::str::FromStr;
 
 use uwl::UnicodeStream;
-use failure::Fail;
+use thiserror::Error;
+
 use crate::internal::prelude::*;
 
+pub trait Fail: std::error::Error + Send + Sync + 'static {}
 
 /// Defines how an operation on an `Args` method failed.
-#[derive(Debug, Fail, PartialEq, Eq)]
+#[derive(Debug, Error, PartialEq, Eq)]
 pub enum ArgError {
     /// "END-OF-STRING". There's nothing to parse anymore.
-    #[fail(display = "reached end of string")]
+    #[error("reached end of string")]
     Eos,
 }
 

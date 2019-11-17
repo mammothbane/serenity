@@ -865,7 +865,6 @@ fn set_client_timeout(client: &mut WsClient) -> Result<()> {
     let stream = match client.get_mut() {
         tungstenite::stream::Stream::Plain(stream) => stream,
         tungstenite::stream::Stream::Tls(stream) => stream.get_mut(),
-        x => panic!(format!("unknown stream type: {:?}", x)),
     };
 
     stream.set_read_timeout(Some(StdDuration::from_millis(500)))?;

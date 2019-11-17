@@ -264,7 +264,7 @@ impl Connection {
                 other => {
                     debug!("[Voice] Expected resumed/hello; got: {:?}", other);
 
-                    return Err(Error::Voice(VoiceError::ExpectedHandshake));
+                    return Err(VoiceError::ExpectedHandshake.into());
                 },
             }
         };
