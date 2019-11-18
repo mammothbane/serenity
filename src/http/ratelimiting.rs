@@ -310,10 +310,7 @@ fn parse_header(headers: &HeaderMap, header: &str) -> Result<Option<i64>> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{
-        error::Error,
-        http::HttpError,
-    };
+    use crate::http::HttpError;
     use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
     use std::{
         error::Error as StdError,
@@ -377,21 +374,11 @@ mod tests {
     fn test_parse_header_errors() -> Result<()> {
         let headers = headers();
 
-        match parse_header(&headers, "x-bad-num").unwrap_err() {
-            Error::Http(x) => match *x {
-                HttpError::RateLimitI64 => assert!(true),
-                _ => assert!(false),
-            },
-            _ => assert!(false),
-        }
+        let err = parse_header(&headers, "x-bad-num").unwrap_err().downcast().unwrap();
+        assert_eq!(HttpError::RateLimitI64, err);
 
-        match parse_header(&headers, "x-bad-unicode").unwrap_err() {
-            Error::Http(http_err) => match *http_err {
-                HttpError::RateLimitUtf8 => assert!(true),
-                _ => assert!(false),
-            },
-            _ => assert!(false),
-        }
+        let err = parse_header(&headers, "x-bad-unicode").unwrap_err().downcast().unwrap();
+        assert_eq!(HttpError::RateLimitUtf8, err);
 
         Ok(())
     }

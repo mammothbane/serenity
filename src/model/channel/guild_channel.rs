@@ -184,9 +184,14 @@ impl GuildChannel {
     /// # use std::error::Error;
     /// #
     /// # #[cfg(feature = "cache")]
-    /// # fn main() -> Result<(), Box<Error>> {
-    /// # use serenity::{cache::{Cache, CacheRwLock}, http::Http, model::id::{ChannelId, UserId}};
-    /// # use parking_lot::RwLock;
+    /// # fn main() -> Result<(), Box<dyn Error>> {
+    /// # use serenity::{
+    /// #     cache::{Cache, CacheRwLock},
+    /// #     http::Http,
+    /// #     model::id::{ChannelId, UserId},
+    /// #     model::channel::GuildChannel,
+    /// # };
+    /// # use parking_lot::{RwLock, RawRwLock};
     /// # use std::sync::Arc;
     /// #
     /// #     let http = Arc::new(Http::default());
@@ -201,13 +206,15 @@ impl GuildChannel {
     /// let allow = Permissions::SEND_MESSAGES;
     /// let deny = Permissions::SEND_TTS_MESSAGES | Permissions::ATTACH_FILES;
     /// let overwrite = PermissionOverwrite {
-    ///     allow: allow,
-    ///     deny: deny,
+    ///     allow,
+    ///     deny,
     ///     kind: PermissionOverwriteType::Member(user_id),
     /// };
-    /// # let cache = cache.read();
+    ///
+    /// let cache = cache.read();
+    ///
     /// // assuming the cache has been unlocked
-    /// let channel = cache
+    /// let channel: Arc<RwLock<GuildChannel>> = cache
     ///     .guild_channel(channel_id)
     ///     .ok_or(ModelError::ItemMissing.into())?;
     ///
@@ -216,7 +223,7 @@ impl GuildChannel {
     /// # }
     /// #
     /// # #[cfg(not(feature = "cache"))]
-    /// # fn main() -> Result<(), Box<Error>> { Ok(()) }
+    /// # fn main() -> Result<(), Box<dyn Error>> { Ok(()) }
     /// ```
     ///
     /// Creating a permission overwrite for a role by specifying the
@@ -228,10 +235,11 @@ impl GuildChannel {
     /// # use std::error::Error;
     /// #
     /// # #[cfg(feature = "cache")]
-    /// # fn main() -> Result<(), Box<Error>> {
-    /// # use serenity::{cache::{Cache, CacheRwLock}, http::Http, model::id::{ChannelId, UserId}};
+    /// # fn main() -> Result<(), Box<dyn Error>> {
+    /// # use serenity::{cache::{Cache, CacheRwLock}, http::Http, model::id::{ChannelId, UserId}, model::channel::GuildChannel};
     /// # use parking_lot::RwLock;
     /// # use std::sync::Arc;
+    /// # use std::ops::Deref;
     /// #
     /// #   let http = Arc::new(Http::default());
     /// #   let cache: CacheRwLock = Arc::new(RwLock::new(Cache::default())).into();
@@ -246,13 +254,14 @@ impl GuildChannel {
     /// let allow = Permissions::SEND_MESSAGES;
     /// let deny = Permissions::SEND_TTS_MESSAGES | Permissions::ATTACH_FILES;
     /// let overwrite = PermissionOverwrite {
-    ///     allow: allow,
-    ///     deny: deny,
+    ///     allow,
+    ///     deny,
     ///     kind: PermissionOverwriteType::Member(user_id),
     /// };
     ///
     /// let cache = cache.read();
-    /// let channel = cache
+    ///
+    /// let channel: Arc<RwLock<GuildChannel>> = cache
     ///     .guild_channel(channel_id)
     ///     .ok_or(ModelError::ItemMissing.into())?;
     ///
@@ -261,7 +270,7 @@ impl GuildChannel {
     /// # }
     /// #
     /// # #[cfg(not(feature = "cache"))]
-    /// # fn main() -> Result<(), Box<Error>> { Ok(()) }
+    /// # fn main() -> Result<(), Box<dyn Error>> { Ok(()) }
     /// ```
     ///
     /// [`Channel`]: enum.Channel.html

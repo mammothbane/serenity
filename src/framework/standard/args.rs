@@ -1,20 +1,30 @@
 use std::cell::Cell;
 use std::marker::PhantomData;
 use std::str::FromStr;
+use std::fmt::Debug;
 
 use uwl::UnicodeStream;
 use thiserror::Error;
 
 use crate::internal::prelude::*;
 
-pub trait Fail: std::error::Error + Send + Sync + 'static {}
+type StrResult<T> = StdResult<T, ArgError<<T as FromStr>::Err>>;
 
 /// Defines how an operation on an `Args` method failed.
 #[derive(Debug, Error, PartialEq, Eq)]
-pub enum ArgError {
+pub enum ArgError<T: Debug + Send + Sync + 'static> {
     /// "END-OF-STRING". There's nothing to parse anymore.
     #[error("reached end of string")]
     Eos,
+
+    #[error("error in fromstr")]
+    FromStr(T),
+}
+
+impl <T: Debug + Send + Sync + 'static> From<T> for ArgError<T> {
+    fn from(t: T) -> Self {
+        return ArgError::FromStr(t)
+    }
 }
 
 /// Dictates how `Args` should split arguments, if by one character, or a string.
@@ -522,8 +532,8 @@ impl Args {
     /// [`trimmed`]: #method.trimmed
     /// [`quoted`]: #method.quoted
     #[inline]
-    pub fn parse<T: FromStr>(&self) -> Result<T> where T::Err: Fail {
-        T::from_str(self.current().ok_or(ArgError::Eos)?).map_err(Error::from)
+    pub fn parse<T: FromStr>(&self) -> StrResult<T> where T::Err: Debug + Send + Sync + 'static {
+        T::from_str(self.current().ok_or(ArgError::Eos)?).map_err(|x| x.into())
     }
 
     /// Parse the current argument and advance.
@@ -548,7 +558,7 @@ impl Args {
     /// [`parse`]: #method.parse
     /// [`next`]: #method.next
     #[inline]
-    pub fn single<T: FromStr>(&mut self) -> Result<T> where T::Err: Fail {
+    pub fn single<T: FromStr>(&mut self) -> StrResult<T> where T::Err: Debug + Send + Sync + 'static {
         let p = self.parse::<T>()?;
         self.advance();
         Ok(p)
@@ -571,7 +581,7 @@ impl Args {
     /// ```
     ///
     #[inline]
-    pub fn single_quoted<T: FromStr>(&mut self) -> Result<T> where T::Err: Fail {
+    pub fn single_quoted<T: FromStr>(&mut self) -> StrResult<T> where T::Err: Debug + Send + Sync + 'static {
         let p = self.quoted().parse::<T>()?;
         self.advance();
         Ok(p)
@@ -675,10 +685,9 @@ impl Args {
     /// assert_eq!(args.single::<String>().unwrap(), "c4");
     /// assert!(args.is_empty());
     /// ```
-    pub fn find<T: FromStr>(&mut self) -> Result<T>
-        where T::Err: Fail {
+    pub fn find<T: FromStr>(&mut self) -> StrResult<T> where T::Err: Debug + Send + Sync + 'static {
         if self.is_empty() {
-            return Err(ArgError::Eos.into());
+            return Err(ArgError::Eos);
         }
 
         let before = self.offset;
@@ -686,7 +695,7 @@ impl Args {
 
         let pos = match self.iter::<T>().quoted().position(|res| res.is_ok()) {
             Some(p) => p,
-            None => return Err(ArgError::Eos.into()),
+            None => return Err(ArgError::Eos),
         };
 
         self.offset = pos;
@@ -717,8 +726,7 @@ impl Args {
     /// ```
     ///
     /// [`find`]: #method.find
-    pub fn find_n<T: FromStr>(&mut self) -> Result<T>
-        where T::Err: Fail {
+    pub fn find_n<T: FromStr>(&mut self) -> StrResult<T> where T::Err: Debug + Send + Sync + 'static {
         if self.is_empty() {
             return Err(ArgError::Eos.into());
         }
@@ -817,7 +825,7 @@ impl<'a, T: FromStr> Iter<'a, T> {
     }
 
     /// Parse the current argument independently.
-    pub fn parse(&self) -> Result<T> where T::Err: Fail {
+    pub fn parse(&self) -> StrResult<T> where T::Err: Debug + Send + Sync + 'static {
         self.args.state.set(self.state);
         self.args.parse::<T>()
     }
@@ -847,8 +855,8 @@ impl<'a, T: FromStr> Iter<'a, T> {
     }
 }
 
-impl<'a, T: FromStr> Iterator for Iter<'a, T> where T::Err: Fail {
-    type Item = Result<T>;
+impl<'a, T: FromStr> Iterator for Iter<'a, T> where T::Err: Debug + Send + Sync + 'static {
+    type Item = StrResult<T>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.args.is_empty() {
@@ -885,5 +893,21 @@ impl<'a> Iterator for RawArguments<'a> {
         }
 
         Some(s)
+    }
+}
+
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+
+    #[test]
+    fn test_int_parse() {
+        let args = Args::new("1", &[' '.into()]);
+
+        let result = args.parse::<u64>();
+
+        assert_eq!(result.unwrap(), 1u64);
     }
 }

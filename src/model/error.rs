@@ -17,7 +17,7 @@ use super::Permissions;
 /// # use std::error::Error;
 /// #
 /// # #[cfg(all(feature = "client", feature = "model"))]
-/// # fn try_main() -> Result<(), Box<Error>> {
+/// # fn try_main() -> Result<(), Box<dyn Error>> {
 /// use serenity::prelude::*;
 /// use serenity::model::prelude::*;
 /// use serenity::model::ModelError;
@@ -36,12 +36,15 @@ use super::Permissions;
 ///             Ok(()) => {
 ///                 // Ban successful.
 ///             },
-///             Err(ModelError::DeleteMessageDaysAmount(amount)) => {
-///                 println!("Failed deleting {} days' worth of messages", amount);
-///             },
-///             Err(why) => {
-///                 println!("Unexpected error: {:?}", why);
-///             },
+///             Err(e) => match e.downcast() {
+///                 Ok(ModelError::DeleteMessageDaysAmount(amount)) => {
+///                     println!("Failed deleting {} days' worth of messages", amount);
+///                 },
+///                 Ok(why) => {
+///                     println!("Unexpected error: {:?}", why);
+///                 },
+///                 Err(e) => eprintln!("error casting error"),
+///             }
 ///         }
 ///     }
 /// }

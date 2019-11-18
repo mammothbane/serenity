@@ -7,7 +7,7 @@ use reqwest::{
 
 use thiserror::Error;
 
-#[derive(Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub struct DiscordJsonError {
     pub code: isize,
     pub message: String,
@@ -21,7 +21,7 @@ impl std::fmt::Debug for DiscordJsonError {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ErrorResponse {
     pub status_code: StatusCode,
     pub url: Url,
@@ -43,7 +43,7 @@ impl From<Response> for ErrorResponse {
 }
 
 
-#[derive(Debug, Error)]
+#[derive(Debug, Error, PartialEq, Eq, Hash)]
 pub enum HttpError {
     /// When a non-successful status code was received for a request.
     #[error("request failed: {:?}", _0)]
@@ -61,12 +61,12 @@ pub enum HttpError {
 
     /// Header value contains invalid input.
     #[error("invalid header value")]
-    InvalidHeader(InvalidHeaderValue),
+    InvalidHeader,
 }
 
 impl From<InvalidHeaderValue> for HttpError {
-    fn from(error: InvalidHeaderValue) -> HttpError {
-        HttpError::InvalidHeader(error)
+    fn from(_: InvalidHeaderValue) -> HttpError {
+        HttpError::InvalidHeader
     }
 }
 
