@@ -371,20 +371,7 @@ pub fn validate_declaration(fun: &mut CommandFun, dec_for: DeclarFor) -> Result<
     Ok(())
 }
 
-pub fn validate_return_type(fun: &mut CommandFun, [relative, absolute]: [Type; 2]) -> Result<()> {
-    let ret = &fun.ret;
-
-    if *ret == relative || *ret == absolute {
-        return Ok(());
-    }
-
-    Err(Error::new(
-        ret.span(),
-        format_args!(
-            "expected either `{}` or `{}` as the return type, but got `{}`",
-            quote!(#relative),
-            quote!(#absolute),
-            quote!(#ret),
-        ),
-    ))
+// WROOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOONG
+pub fn validate_return_type(_fun: &mut CommandFun, [_relative, _absolute]: [Type; 2]) -> Result<()> {
+    Ok(())
 }
