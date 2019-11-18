@@ -1,5 +1,6 @@
 use std::borrow::Cow;
 
+use thiserror::Error;
 use uwl::{StrExt, UnicodeStream};
 
 use crate::client::Context;
@@ -206,13 +207,13 @@ fn parse_cmd(
     msg: &Message,
     config: &Configuration,
     map: &CommandMap,
-) -> StdResult<&'static Command, ParseError> {
+) -> Result<&'static Command> {
     let (n, r) = try_parse(stream, map, config.by_space, |s| {
         to_lowercase(config, s).into_owned()
     });
 
     if config.disabled_commands.contains(&n) {
-        return Err(ParseError::Dispatch(DispatchError::CommandDisabled(n)));
+        return Err(DispatchError::CommandDisabled(n).into());
     }
 
     if let Some((cmd, map)) = r {
@@ -229,12 +230,15 @@ fn parse_cmd(
         }
 
         return match parse_cmd(stream, ctx, msg, config, &map) {
-            Err(ParseError::UnrecognisedCommand(Some(_))) => Ok(cmd),
+            Err(e) => match e.downcast()? {
+                UnknownCommand(Some(_)) => Ok(cmd),
+                e => Err(e.into()),
+            },
             res => res,
         };
     }
 
-    Err(ParseError::UnrecognisedCommand(Some(n.to_string())))
+    Err(UnknownCommand(Some(n.to_string())).into())
 }
 
 fn parse_group(
@@ -243,7 +247,7 @@ fn parse_group(
     msg: &Message,
     config: &Configuration,
     map: &GroupMap,
-) -> StdResult<(&'static CommandGroup, Arc<CommandMap>), ParseError> {
+) -> Result<(&'static CommandGroup, Arc<CommandMap>)> {
     let (n, o) = try_parse(stream, map, config.by_space, ToString::to_string);
 
     if let Some((group, map, commands)) = o {
@@ -260,12 +264,15 @@ fn parse_group(
         }
 
         return match parse_group(stream, ctx, msg, config, &map) {
-            Err(ParseError::UnrecognisedCommand(None)) => Ok((group, commands)),
+            Err(e) => match e.downcast()? {
+                UnknownCommand(None) => Ok((group, commands)),
+                res => Err(res.into()),
+            }
             res => res,
         };
     }
 
-    Err(ParseError::UnrecognisedCommand(None))
+    Err(UnknownCommand(None).into())
 }
 
 #[inline]
@@ -276,12 +283,12 @@ fn handle_command(
     config: &Configuration,
     map: &CommandMap,
     group: &'static CommandGroup,
-) -> StdResult<Invoke, ParseError> {
+) -> Result<Invoke> {
     match parse_cmd(stream, ctx, msg, config, map) {
         Ok(command) => Ok(Invoke::Command { group, command }),
         Err(err) => match group.options.default_command {
             Some(command) => Ok(Invoke::Command { group, command }),
-            None => Err(err),
+            None => Err(err.into()),
         },
     }
 }
@@ -293,23 +300,14 @@ fn handle_group(
     msg: &Message,
     config: &Configuration,
     map: &GroupMap,
-) -> StdResult<Invoke, ParseError> {
+) -> Result<Invoke> {
     parse_group(stream, ctx, msg, config, map)
         .and_then(|(group, map)| handle_command(stream, ctx, msg, config, &map, group))
 }
 
-#[derive(Debug)]
-pub enum ParseError {
-    UnrecognisedCommand(Option<String>),
-    Dispatch(DispatchError),
-}
-
-impl From<DispatchError> for ParseError {
-    #[inline]
-    fn from(err: DispatchError) -> Self {
-        ParseError::Dispatch(err)
-    }
-}
+#[derive(Debug, Clone, Error, PartialEq, Eq, Hash)]
+#[error("parse failed, context: {:?}", _0)]
+pub struct UnknownCommand(pub Option<String>);
 
 /// Parse a command from the message.
 ///
@@ -327,7 +325,7 @@ pub fn command(
     groups: &[(&'static CommandGroup, Map)],
     config: &Configuration,
     help_was_set: Option<&[&'static str]>,
-) -> StdResult<Invoke, ParseError> {
+) -> Result<Invoke> {
     // Precedence is taken over commands named as one of the help names.
     if let Some(names) = help_was_set {
         for name in names {
@@ -343,7 +341,7 @@ pub fn command(
         }
     }
 
-    let mut last = Err(ParseError::UnrecognisedCommand(None));
+    let mut last = Err(UnknownCommand(None).into());
 
     for (group, map) in groups {
         match map {

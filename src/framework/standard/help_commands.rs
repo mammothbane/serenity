@@ -57,7 +57,7 @@
 #[cfg(all(feature = "cache", feature = "http"))]
 use super::{
     Args, CommandGroup, CommandOptions,
-    CommandResult, has_correct_roles, HelpBehaviour, HelpOptions,
+    has_correct_roles, HelpBehaviour, HelpOptions,
     has_correct_permissions, OnlyIn,
     structures::Command as InternalCommand,
 };
@@ -1202,7 +1202,7 @@ pub fn with_embeds(
     help_options: &HelpOptions,
     groups: &[&'static CommandGroup],
     owners: HashSet<UserId>,
-) -> CommandResult {
+) -> Result<()> {
     let formatted_help =
         create_customised_help_data(&context, &groups, &owners, &args, help_options, msg);
 
@@ -1387,7 +1387,7 @@ pub fn plain(
     help_options: &HelpOptions,
     groups: &[&'static CommandGroup],
     owners: HashSet<UserId>,
-) -> CommandResult {
+) -> Result<()> {
     let formatted_help =
         create_customised_help_data(&context, &groups, &owners, &args, help_options, msg);
 

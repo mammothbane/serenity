@@ -4,6 +4,7 @@ use std::sync::Arc;
 use threadpool::ThreadPool;
 use uwl::{UnicodeStream, StrExt};
 use thiserror::Error;
+use anyhow::Error;
 
 use crate::client::Context;
 use crate::internal::prelude::*;
@@ -22,7 +23,7 @@ use crate::internal::RwLockExt;
 use super::Framework;
 
 use self::structures::buckets::{Bucket, Ratelimit};
-use self::parse::{ParseError, Invoke};
+use self::parse::{UnknownCommand, Invoke};
 use self::parse::map::{CommandMap, GroupMap, Map};
 
 pub use self::configuration::{Configuration, WithWhiteSpace};
@@ -110,7 +111,7 @@ pub enum DispatchError {
 
 pub type DispatchHook = dyn Fn(&mut Context, &Message, DispatchError) + Send + Sync + 'static;
 type BeforeHook = dyn Fn(&mut Context, &Message, &str) -> bool + Send + Sync + 'static;
-type AfterHook = dyn Fn(&mut Context, &Message, &str, StdResult<(), CommandError>) + Send + Sync + 'static;
+type AfterHook = dyn Fn(&mut Context, &Message, &str, StdResult<(), Error>) + Send + Sync + 'static;
 type UnrecognisedHook = dyn Fn(&mut Context, &Message, &str) + Send + Sync + 'static;
 type NormalMessageHook = dyn Fn(&mut Context, &Message) + Send + Sync + 'static;
 type PrefixOnlyHook = dyn Fn(&mut Context, &Message) + Send + Sync + 'static;
@@ -571,7 +572,7 @@ impl StandardFramework {
     /// ```
     pub fn after<F>(mut self, f: F) -> Self
     where
-        F: Fn(&mut Context, &Message, &str, StdResult<(), CommandError>) + Send + Sync + 'static,
+        F: Fn(&mut Context, &Message, &str, StdResult<(), Error>) + Send + Sync + 'static,
     {
         self.after = Some(Arc::new(f));
 
@@ -704,32 +705,38 @@ impl Framework for StandardFramework {
 
         let invoke = match invocation {
             Ok(i) => i,
-            Err(ParseError::UnrecognisedCommand(unreg)) => {
-                if let Some(unreg) = unreg {
-                    if let Some(unrecognised_command) = &self.unrecognised_command {
-                        let unrecognised_command = Arc::clone(&unrecognised_command);
-                        let mut ctx = ctx.clone();
+            Err(e) => {
+                if let Some(UnknownCommand(ref unreg)) = e.downcast_ref() {
+                    if let Some(unreg) = unreg {
+                        if let Some(unrecognised_command) = &self.unrecognised_command {
+                            let unrecognised_command = Arc::clone(&unrecognised_command);
+
+                            let mut ctx = ctx.clone();
+                            let msg = msg.clone();
+                            let unreg = unreg.clone();
+
+                            threadpool.execute(move || {
+                                unrecognised_command(&mut ctx, &msg, &unreg);
+                            });
+                        }
+                    }
+
+                    if let Some(normal) = &self.normal_message {
+                        let normal = Arc::clone(&normal);
                         let msg = msg.clone();
+
                         threadpool.execute(move || {
-                            unrecognised_command(&mut ctx, &msg, &unreg);
+                            normal(&mut ctx, &msg);
                         });
                     }
+
+                    return;
                 }
 
-                if let Some(normal) = &self.normal_message {
-                    let normal = Arc::clone(&normal);
-                    let msg = msg.clone();
-
-                    threadpool.execute(move || {
-                        normal(&mut ctx, &msg);
-                    });
-                }
-
-                return;
-            }
-            Err(ParseError::Dispatch(error)) => {
-                if let Some(dispatch) = &self.dispatch {
-                    dispatch(&mut ctx, &msg, error);
+                if let Some(error) = e.downcast_ref::<DispatchError>() {
+                    if let Some(dispatch) = &self.dispatch {
+                        dispatch(&mut ctx, &msg, error.clone());
+                    }
                 }
 
                 return;

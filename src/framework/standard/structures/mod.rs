@@ -2,13 +2,16 @@ use std::{
     collections::HashSet,
     fmt,
 };
+
+use crate::internal::prelude::*;
 use crate::client::Context;
+use crate::utils::Colour;
 use crate::model::{
     channel::Message,
     permissions::Permissions,
     id::UserId,
 };
-use crate::utils::Colour;
+
 use super::Args;
 
 mod check;
@@ -77,22 +80,8 @@ pub struct GroupOptions {
     pub description: Option<&'static str>,
 }
 
-#[derive(Debug, Clone)]
-pub struct CommandError(pub String);
-
-impl<T: fmt::Display> From<T> for CommandError {
-    #[inline]
-    fn from(d: T) -> Self {
-        CommandError(d.to_string())
-    }
-}
-
-pub type CommandResult = ::std::result::Result<(), CommandError>;
-
-pub type CommandFn = fn(&mut Context, &Message, Args) -> CommandResult;
-
 pub struct Command {
-    pub fun: CommandFn,
+    pub fun: fn(&mut Context, &Message, Args) -> Result<()>,
     pub options: &'static CommandOptions,
 }
 
@@ -118,7 +107,7 @@ pub type HelpCommandFn = fn(
     &'static HelpOptions,
     &[&'static CommandGroup],
     HashSet<UserId>,
-) -> CommandResult;
+) -> Result<()>;
 
 pub struct HelpCommand {
     pub fun: HelpCommandFn,
